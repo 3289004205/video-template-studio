@@ -245,9 +245,9 @@ function drawPain(t){
 function embeddedImage(im){if(isVideoMedia(im))return im.src;const c=document.createElement('canvas');c.width=im.width;c.height=im.height;c.getContext('2d').drawImage(im,0,0);return c.toDataURL('image/png');}
 async function openPainProject(p){
  const s=p.settings,valid=a=>a&&typeof a.src==='string'&&validMediaSource(a)&&typeof a.name==='string'&&a.name.length<=200;
- if(![1,2,3].includes(p.version)||!s||!validFrameSettings(s)||!Number.isFinite(s.duration)||s.duration<3||s.duration>18||!/^#[0-9a-f]{6}$/i.test(s.background)||typeof p.showText!=='boolean'||!Array.isArray(p.images)||p.images.length<1||p.images.length>12||(p.version===1&&p.images.length!==4)||!p.images.every(valid)||(p.version>=2&&p.images.some(a=>a.textSlot!==null&&(!Number.isInteger(a.textSlot)||a.textSlot<0||a.textSlot>3)))||(p.backgroundImage!=null&&!valid(p.backgroundImage)))throw new Error('四大痛点模板参数或素材无效。');
+ if(![1,2,3].includes(p.version)||!s||!validFrameSettings(s)||!Number.isFinite(s.duration)||s.duration<3||s.duration>18||!/^#[0-9a-f]{6}$/i.test(s.background)||typeof p.showText!=='boolean'||!Array.isArray(p.images)||p.images.length<1||p.images.length>12||(p.version===1&&p.images.length!==4)||!p.images.every(valid)||(p.version>=2&&p.images.some(a=>a.textSlot!==null&&(!Number.isInteger(a.textSlot)||a.textSlot<0||a.textSlot>3)))||(p.backgroundImage!=null&&!valid(p.backgroundImage)))throw new Error('痛点轮播模板参数或素材无效。');
  const ims=await Promise.all(p.images.map(async (a,i)=>({...a,textSlot:p.version===1?i:a.textSlot,image:await mediaFrom(a.src)}))),bg=p.backgroundImage?await imageFrom(p.backgroundImage.src):null;
- switchTemplate('pain');painCards=ims;painKeepText=p.showText;settings={...frameExtras(s),size:s.size,duration:s.duration,background:s.background,scale:100,stack:false};customBackground=p.backgroundImage||null;backgroundImage=bg;time=0;renderPain();syncBackgroundUI();syncSettings();notice('四大痛点模板已打开。');
+ switchTemplate('pain');painCards=ims;painKeepText=p.showText;settings={...frameExtras(s),size:s.size,duration:s.duration,background:s.background,scale:100,stack:false};customBackground=p.backgroundImage||null;backgroundImage=bg;time=0;renderPain();syncBackgroundUI();syncSettings();notice('痛点轮播模板已打开。');
 }
 
 
@@ -279,15 +279,15 @@ function drawBuyer(t){
 }
 async function openBuyerProject(p){
  const s=p.settings,valid=a=>a&&typeof a.name==='string'&&a.name.length<=200&&typeof a.src==='string'&&validMediaSource(a);
- if(![1,2,3].includes(p.version)||!s||!validFrameSettings(s)||!Number.isFinite(s.duration)||s.duration<3||s.duration>18||!/^#[0-9a-f]{6}$/i.test(s.background)||!Array.isArray(p.images)||p.images.length<1||p.images.length>12||(p.version===1&&p.images.length!==4)||!p.images.every(a=>a===null||valid(a))||(p.backgroundImage!=null&&!valid(p.backgroundImage)))throw new Error('买家秀模板参数或图片无效。');
+ if(![1,2,3].includes(p.version)||!s||!validFrameSettings(s)||!Number.isFinite(s.duration)||s.duration<3||s.duration>18||!/^#[0-9a-f]{6}$/i.test(s.background)||!Array.isArray(p.images)||p.images.length<1||p.images.length>12||(p.version===1&&p.images.length!==4)||!p.images.every(a=>a===null||valid(a))||(p.backgroundImage!=null&&!valid(p.backgroundImage)))throw new Error('买家秀轮播模板参数或图片无效。');
  const ims=await Promise.all(p.images.map(async a=>a?{...a,image:await mediaFrom(a.src)}:{src:null,image:null,name:''})),bg=p.backgroundImage?await imageFrom(p.backgroundImage.src):null;
- switchTemplate('buyer');buyerCards=ims;settings={...frameExtras(s),size:s.size,duration:s.duration,background:s.background,scale:100,stack:false};customBackground=p.backgroundImage||null;backgroundImage=bg;time=0;renderBuyer();syncBackgroundUI();syncSettings();notice('买家秀模板已打开。');
+ switchTemplate('buyer');buyerCards=ims;settings={...frameExtras(s),size:s.size,duration:s.duration,background:s.background,scale:100,stack:false};customBackground=p.backgroundImage||null;backgroundImage=bg;time=0;renderBuyer();syncBackgroundUI();syncSettings();notice('买家秀轮播模板已打开。');
 }
 
 
 let bodyCards=[0,1].map(i=>({name:['男生画面','女生画面'][i],src:`assets/body-${i}.png`,image:null})),bodyDefaults=[],bodyUi=[],bodySelected=null;
 function renderBody(){
- $('bodyCards').replaceChildren();bodyCards.forEach((card,i)=>{const b=document.createElement('button');b.className='pain-card body-card';b.setAttribute('aria-label',`替换体型不设限第 ${i+1} 张`);const im=document.createElement('img');im.src=mediaPoster(card.image,card.src);im.alt=card.name;const label=document.createElement('span');label.textContent=`${i===0?'左侧画面':'右侧画面'} · ${isVideoMedia(card.image)?'视频 · ':''}替换图片 / 视频`;b.append(im,label);b.onclick=()=>{bodySelected=card;$('bodyInput').click();};$('bodyCards').append(b);});
+ $('bodyCards').replaceChildren();bodyCards.forEach((card,i)=>{const b=document.createElement('button');b.className='pain-card body-card';b.setAttribute('aria-label',`替换左右移轴对比第 ${i+1} 张`);const im=document.createElement('img');im.src=mediaPoster(card.image,card.src);im.alt=card.name;const label=document.createElement('span');label.textContent=`${i===0?'左侧画面':'右侧画面'} · ${isVideoMedia(card.image)?'视频 · ':''}替换图片 / 视频`;b.append(im,label);b.onclick=()=>{bodySelected=card;$('bodyInput').click();};$('bodyCards').append(b);});
 }
 $('bodyInput').onchange=async e=>{const file=e.target.files[0],target=bodySelected;e.target.value='';if(!file||exporting)return;try{const ready=await importMedia(file,4096);if(exporting||!bodyCards.includes(target))return;Object.assign(target,ready,{name:file.name.slice(0,200)});renderBody();invalidateVideo();draw(time);notice('素材已替换，分隔线动画保持不变。');}catch(e){notice(e.message);}};
 $('resetBody').onclick=()=>{if(exporting)return;bodyCards=bodyDefaults.map(c=>({...c}));renderBody();invalidateVideo();draw(time);notice('已恢复原工程的两张图片。');};
@@ -303,9 +303,9 @@ function drawBody(t){
 }
 async function openBodyProject(p){
  const s=p.settings,valid=a=>a&&typeof a.name==='string'&&a.name.length<=200&&typeof a.src==='string'&&validMediaSource(a);
- if(![1,2].includes(p.version)||!s||!validFrameSettings(s)||!Number.isFinite(s.duration)||s.duration<3||s.duration>18||!/^#[0-9a-f]{6}$/i.test(s.background)||!Array.isArray(p.images)||p.images.length!==2||!p.images.every(valid)||(p.backgroundImage!=null&&!valid(p.backgroundImage)))throw new Error('体型不设限模板参数或图片无效。');
+ if(![1,2].includes(p.version)||!s||!validFrameSettings(s)||!Number.isFinite(s.duration)||s.duration<3||s.duration>18||!/^#[0-9a-f]{6}$/i.test(s.background)||!Array.isArray(p.images)||p.images.length!==2||!p.images.every(valid)||(p.backgroundImage!=null&&!valid(p.backgroundImage)))throw new Error('左右移轴对比模板参数或图片无效。');
  const ims=await Promise.all(p.images.map(async a=>({...a,image:await mediaFrom(a.src)}))),bg=p.backgroundImage?await imageFrom(p.backgroundImage.src):null;
- switchTemplate('body');bodyCards=ims;settings={...frameExtras(s),size:s.size,duration:s.duration,background:s.background,scale:100,stack:false};customBackground=p.backgroundImage||null;backgroundImage=bg;time=0;renderBody();syncBackgroundUI();syncSettings();notice('体型不设限模板已打开。');
+ switchTemplate('body');bodyCards=ims;settings={...frameExtras(s),size:s.size,duration:s.duration,background:s.background,scale:100,stack:false};customBackground=p.backgroundImage||null;backgroundImage=bg;time=0;renderBody();syncBackgroundUI();syncSettings();notice('左右移轴对比模板已打开。');
 }
 
 const templateStates={};
@@ -318,7 +318,7 @@ function switchTemplate(mode){
   customBackground=saved?saved.customBackground:null;backgroundImage=saved?saved.backgroundImage:null;time=saved?saved.time:0;
   $('templateMode').value=mode;
   $('smartMaterials').hidden=mode!=='smart';$('bodyMaterials').hidden=mode!=='body';$('buyerMaterials').hidden=mode!=='buyer';$('painMaterials').hidden=mode!=='pain';$('cardMaterials').hidden=mode!=='cards';$('longMaterials').hidden=mode!=='plain';$('cardScale').hidden=mode!=='cards';$('trailSettings').hidden=mode!=='cards';
-  canvas.setAttribute('aria-label',mode==='smart'?'智能互联动态人物轮播预览':mode==='body'?'体型不设限左右对比预览':mode==='buyer'?'买家秀横向轮播预览':mode==='pain'?'四大痛点轮播预览':mode==='plain'?'长图横向滚动预览':'六张课程卡片循环轮播预览');
+  canvas.setAttribute('aria-label',mode==='smart'?'课程卡片轮播2轮播预览':mode==='body'?'左右移轴对比左右对比预览':mode==='buyer'?'买家秀横向轮播预览':mode==='pain'?'痛点轮播预览':mode==='plain'?'长图横向滚动预览':'六张课程卡片循环轮播预览');
   syncBackgroundUI();syncSettings();notice('');if(mode==='smart'&&!smartReady){notice('正在加载动态人物素材…');ensureSmart().catch(()=>{});}
 }
 $('templateMode').onchange=e=>switchTemplate(e.target.value);
@@ -449,16 +449,16 @@ function syncSettings(){
 function downloadBlob(blob,filename){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);}
 async function saveProject(){try{
  if(activeTemplate==='smart'){await saveSmartProject();return;}
- if(activeTemplate==='body'){if(bodyCards.some(c=>!c.image))throw new Error('请等待素材加载完成。');downloadBlob(new Blob([JSON.stringify({type:'body-compare',version:2,settings,images:bodyCards.map(c=>({name:c.name,kind:mediaKind(c.image),src:embeddedImage(c.image)})),backgroundImage:customBackground})],{type:'application/json'}),'体型不设限模板.json');notice('体型不设限模板已保存。');return;}
- if(activeTemplate==='buyer'){downloadBlob(new Blob([JSON.stringify({type:'buyer-carousel',version:3,settings,images:buyerCards.map(c=>c.image?{name:c.name,kind:mediaKind(c.image),src:embeddedImage(c.image)}:null),backgroundImage:customBackground})],{type:'application/json'}),'买家秀模板.json');notice('买家秀模板已保存，可下次继续替换图片或视频。');return;}
-  if(activeTemplate==='pain'){if(painCards.some(c=>!c.image))throw new Error('请等待素材加载完成。');downloadBlob(new Blob([JSON.stringify({type:'pain-carousel',version:3,settings,showText:painKeepText,images:painCards.map(c=>({name:c.name,kind:mediaKind(c.image),src:embeddedImage(c.image),textSlot:c.textSlot})),backgroundImage:customBackground})],{type:'application/json'}),'四大痛点轮播模板.json');notice('四大痛点模板已保存，包含全部图片和视频、画面数量、文案开关和画面参数。');return;}
+ if(activeTemplate==='body'){if(bodyCards.some(c=>!c.image))throw new Error('请等待素材加载完成。');downloadBlob(new Blob([JSON.stringify({type:'body-compare',version:2,settings,images:bodyCards.map(c=>({name:c.name,kind:mediaKind(c.image),src:embeddedImage(c.image)})),backgroundImage:customBackground})],{type:'application/json'}),'左右移轴对比模板.json');notice('左右移轴对比模板已保存。');return;}
+ if(activeTemplate==='buyer'){downloadBlob(new Blob([JSON.stringify({type:'buyer-carousel',version:3,settings,images:buyerCards.map(c=>c.image?{name:c.name,kind:mediaKind(c.image),src:embeddedImage(c.image)}:null),backgroundImage:customBackground})],{type:'application/json'}),'买家秀轮播模板.json');notice('买家秀轮播模板已保存，可下次继续替换图片或视频。');return;}
+  if(activeTemplate==='pain'){if(painCards.some(c=>!c.image))throw new Error('请等待素材加载完成。');downloadBlob(new Blob([JSON.stringify({type:'pain-carousel',version:3,settings,showText:painKeepText,images:painCards.map(c=>({name:c.name,kind:mediaKind(c.image),src:embeddedImage(c.image),textSlot:c.textSlot})),backgroundImage:customBackground})],{type:'application/json'}),'痛点轮播模板.json');notice('痛点轮播模板已保存，包含全部图片和视频、画面数量、文案开关和画面参数。');return;}
   if(activeTemplate==='plain'){
     if(!longImage)throw new Error('请等待长图加载完成。');
 
     downloadBlob(new Blob([JSON.stringify({type:'long-scroll',version:2,settings,longImage:{src:embeddedImage(longImage),kind:mediaKind(longImage),name:longName},backgroundImage:customBackground})],{type:'application/json'}),'长图横向滚动模板.json');notice('长图模板已保存，包含长图、背景和画面参数。');return;
   }
   const exported=cards.map(c=>({title:c.title,src:embeddedImage(c.image),kind:mediaKind(c.image),original:!!c.original}));
-  downloadBlob(new Blob([JSON.stringify({type:'course-carousel',version:2,settings,cards:exported,trail:customStack,backgroundImage:customBackground})],{type:'application/json'}),'课程轮播模板.json');notice('模板已保存，包含六张图片或视频、拖尾、背景图片和画面参数。下次用「打开模板」继续编辑。');
+  downloadBlob(new Blob([JSON.stringify({type:'course-carousel',version:2,settings,cards:exported,trail:customStack,backgroundImage:customBackground})],{type:'application/json'}),'课程卡片轮播1模板.json');notice('模板已保存，包含六张图片或视频、拖尾、背景图片和画面参数。下次用「打开模板」继续编辑。');
 }catch(e){notice('保存失败：'+e.message);}}
 function validateProject(p){
   if(p.type!=='course-carousel'||![1,2].includes(p.version)||!Array.isArray(p.cards)||p.cards.length!==6)throw new Error('这不是有效的轮播模板文件。');
@@ -497,7 +497,7 @@ async function exportVideo(){
     if(cancelled){showExportDialog('导出已取消','请保持页面在前台，再重新导出。');notice('导出已取消。');return;}
     if(!chunks.length)throw new Error('未生成视频数据，请重试。');
     const blob=new Blob(chunks,{type:recorder.mimeType||supportedMime});if(videoURL)URL.revokeObjectURL(videoURL);videoURL=URL.createObjectURL(blob);
-    $('download').href=videoURL;$('download').download=`${activeTemplate==='smart'?'智能互联动态人物':activeTemplate==='body'?'体型不设限':activeTemplate==='buyer'?'买家秀':activeTemplate==='pain'?'四大痛点轮播':activeTemplate==='plain'?'长图横向滚动':'课程轮播'}-${canvas.width}x${canvas.height}.${extension}`;$('download').textContent=`下载 ${extension.toUpperCase()} 视频 · ${(blob.size/1024/1024).toFixed(1)} MB`;$('download').hidden=false;
+    $('download').href=videoURL;$('download').download=`${activeTemplate==='smart'?'课程卡片轮播2':activeTemplate==='body'?'左右移轴对比':activeTemplate==='buyer'?'买家秀轮播':activeTemplate==='pain'?'痛点轮播':activeTemplate==='plain'?'长图横向滚动':'课程卡片轮播1'}-${canvas.width}x${canvas.height}.${extension}`;$('download').textContent=`下载 ${extension.toUpperCase()} 视频 · ${(blob.size/1024/1024).toFixed(1)} MB`;$('download').hidden=false;
     showExportDialog('视频已生成','已发起自动下载。如未开始，请点击下方按钮；文件可在浏览器下载记录中查看。');$('download').click();$('download').textContent=$('download').textContent.replace('下载 ','再次下载 ');notice('视频已生成，已发起下载。');
   }catch(e){exportProblem('导出未完成：'+e.message+' 请降低尺寸后重试。');}
   finally{cancelAnimationFrame(raf);clearTimeout(timer);if(recorder&&recorder.state!=='inactive')recorder.stop();if(stream)stream.getTracks().forEach(t=>t.stop());exporting=false;cancelRecording=null;document.body.classList.remove('exporting');$('exportState').hidden=true;$('closeExport').hidden=false;disableIds.forEach(id=>$(id).disabled=false);editorControls.forEach(x=>x.el.disabled=x.disabled);time=0;draw(0);syncTime();}
