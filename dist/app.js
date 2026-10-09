@@ -48,6 +48,60 @@ async function importImage(file,maxEdge=1600){
   const c=document.createElement('canvas');c.width=Math.round(image.width*resize);c.height=Math.round(image.height*resize);c.getContext('2d').drawImage(image,0,0,c.width,c.height);
   const src=c.toDataURL('image/png');return {src,image:await imageFrom(src),original:false};
 }
+// All non-smart templates keep their existing geometry and accept a CanvasImageSource.
+let templateVideos=[];
+function isVideoMedia(media){return media instanceof HTMLVideoElement;}
+function mediaKind(media){return isVideoMedia(media)?'video':'image';}
+function mediaPoster(media,src){return isVideoMedia(media)?media.poster:src;}
+function validMediaSource(a){
+  if(!a||typeof a.src!=='string')return false;
+  const video=/^data:video\/(mp4|webm);base64,/.test(a.src);
+  return (video?a.src.length<=56*1024*1024:/^data:image\/(png|jpeg|webp);base64,/.test(a.src))&&(a.kind===undefined||a.kind===(video?'video':'image'));
+}
+async function mediaFrom(src){
+  if(!/^data:video\//.test(src))return imageFrom(src);
+  const v=await smartVideo(src);
+  if(!Number.isFinite(v.duration)||v.duration<=0||v.duration>120||!v.videoWidth||!v.videoHeight||v.videoWidth*v.videoHeight>17000000){v.removeAttribute('src');v.load();throw Error('请选择 2 分钟以内、4K 或以下的视频。');}
+  v.width=v.videoWidth;v.height=v.videoHeight;
+  const poster=document.createElement('canvas'),ratio=Math.min(1,480/Math.max(v.width,v.height));
+  poster.width=Math.max(1,Math.round(v.width*ratio));poster.height=Math.max(1,Math.round(v.height*ratio));poster.getContext('2d').drawImage(v,0,0,poster.width,poster.height);v.poster=poster.toDataURL('image/jpeg',.82);
+  v.onseeked=()=>{if(!playing&&!exporting&&activeMediaVideos().includes(v))draw(time);};
+  return v;
+}
+async function importMedia(file,maxEdge=3000){
+  const type=file.type||(/\.mp4$/i.test(file.name)?'video/mp4':/\.webm$/i.test(file.name)?'video/webm':'');
+  if(!['video/mp4','video/webm'].includes(type))return {...await importImage(file,maxEdge),kind:'image'};
+  if(file.size>40*1024*1024)throw Error('单个视频请控制在 40 MB 以内。');
+  const src=await readFile(new File([file],file.name,{type})),image=await mediaFrom(src);
+  return {src,image,kind:'video',original:false};
+}
+function activeMediaVideos(){
+  const list=activeTemplate==='cards'?cards:activeTemplate==='pain'?painCards:activeTemplate==='buyer'?buyerCards:activeTemplate==='body'?bodyCards:activeTemplate==='plain'?[{image:longImage}]:[];
+  return [...new Set(list.map(c=>c.image).filter(isVideoMedia))];
+}
+function pauseTemplateMedia(){templateVideos.forEach(v=>v.pause());}
+function syncTemplateMedia(t){
+  const current=activeMediaVideos(),play=playing||exporting;
+  templateVideos.filter(v=>!current.includes(v)).forEach(v=>v.pause());templateVideos=current;
+  for(const v of current){
+    const target=Math.max(0,t)%v.duration;
+    if(!play)v.pause();
+    if(!v.seeking&&Math.abs(v.currentTime-target)>(play?.2:.035))v.currentTime=target;
+    v.playbackRate=1;
+    if(play&&v.paused)v.play().catch(()=>{if(activeMediaVideos().includes(v))notice('视频未能播放，请点击播放按钮重试，或使用 H.264 MP4。');});
+  }
+}
+async function prepareTemplateExport(){
+  pauseTemplateMedia();
+  await Promise.all(activeMediaVideos().map(v=>new Promise((resolve,reject)=>{
+    v.pause();if(!v.seeking&&v.currentTime<.025){resolve();return;}
+    const cleanup=()=>{clearTimeout(timer);v.removeEventListener('seeked',done);};
+    const done=()=>{if(v.seeking||v.currentTime>=.025)return;cleanup();resolve();};
+    const timer=setTimeout(()=>{cleanup();reject(Error('视频定位失败，请重试导出。'));},10000);
+    v.addEventListener('seeked',done);v.currentTime=0;
+  })));
+}
+
 function renderCards(){
   $('cards').replaceChildren();
   cards.forEach((card,i)=>{
@@ -58,8 +112,8 @@ function renderCards(){
     el.addEventListener('dragover',e=>{if(dragged!==null){e.preventDefault();el.classList.add('drop');}});el.addEventListener('dragleave',()=>el.classList.remove('drop'));
     el.addEventListener('drop',e=>{e.preventDefault();if(dragged!==null)moveCard(dragged,i);dragged=null;});
     const btn=document.createElement('button');btn.className='card-image';btn.setAttribute('aria-label',`替换第 ${i+1} 张：${card.title}`);
-    const img=document.createElement('img');img.src=card.src;img.alt=card.title;
-    const text=document.createElement('span');text.className='replace';text.textContent='替换图片';btn.append(img,text);btn.onclick=()=>{selected=i;$('imageInput').click();};
+    const img=document.createElement('img');img.src=mediaPoster(card.image,card.src);img.alt=card.title;
+    const text=document.createElement('span');text.className='replace';text.textContent=(isVideoMedia(card.image)?'视频 · ':'')+'替换图片 / 视频';btn.append(img,text);btn.onclick=()=>{selected=i;$('imageInput').click();};
     const input=document.createElement('input');input.value=card.title;input.maxLength=24;input.setAttribute('aria-label',`第 ${i+1} 张分类标题`);input.oninput=()=>{card.title=input.value;invalidateVideo();draw(time);};
     const order=document.createElement('div');order.className='card-order';
     [['前移',-1],['后移',1]].forEach(([label,delta])=>{const b=document.createElement('button');b.textContent=label;b.setAttribute('aria-label',`第 ${i+1} 张${label}`);b.disabled=i+delta<0||i+delta>=cards.length;b.onclick=()=>moveCard(i,i+delta);order.append(b);});
@@ -110,13 +164,13 @@ let painCards=painNames.map((name,i)=>({name,src:`assets/pain-${i}.png`,image:nu
 function renderPain(){
  $('painCards').replaceChildren();$('painText').checked=painKeepText;$('painCount').textContent=`${painCards.length} 个画面 · ${painCards.length} 个进度标记`;$('addPain').disabled=painCards.length>=12;
  painCards.forEach((card,i)=>{
-  const wrap=document.createElement('div');wrap.className='pain-item';const b=document.createElement('button');b.className='pain-card';b.setAttribute('aria-label',`替换痛点第 ${i+1} 屏`);const im=document.createElement('img');im.src=card.src;im.alt=card.name;const label=document.createElement('span');label.textContent=`${i+1}. ${card.textSlot==null?'自定义画面':painNames[card.textSlot]} · 替换`;b.append(im,label);b.onclick=()=>{painSelected=card;$('painInput').click();};
+  const wrap=document.createElement('div');wrap.className='pain-item';const b=document.createElement('button');b.className='pain-card';b.setAttribute('aria-label',`替换痛点第 ${i+1} 屏`);const im=document.createElement('img');im.src=mediaPoster(card.image,card.src);im.alt=card.name;const label=document.createElement('span');label.textContent=`${i+1}. ${card.textSlot==null?'自定义画面':painNames[card.textSlot]} · ${isVideoMedia(card.image)?'视频 · ':''}替换图片 / 视频`;b.append(im,label);b.onclick=()=>{painSelected=card;$('painInput').click();};
   const remove=document.createElement('button');remove.className='text-button pain-remove';remove.textContent='删除此画面';remove.setAttribute('aria-label',`删除第 ${i+1} 个画面`);remove.disabled=painCards.length<=1;remove.onclick=()=>{if(exporting||painCards.length<=1)return;painCards.splice(i,1);renderPain();invalidateVideo();time=0;draw(time);syncTime();notice(`已删除画面，底部 UI 已同步为 ${painCards.length} 个标记。`);};wrap.append(b,remove);$('painCards').append(wrap);
  });
 }
-$('painInput').onchange=async e=>{const file=e.target.files[0],card=painSelected;e.target.value='';if(!file||exporting)return;try{const ready=await importImage(file,3000);if(exporting||!painCards.includes(card))return;Object.assign(card,ready,{name:file.name.slice(0,200)});renderPain();invalidateVideo();draw(time);notice('画面已替换。');}catch(e){notice(e.message);}};
+$('painInput').onchange=async e=>{const file=e.target.files[0],card=painSelected;e.target.value='';if(!file||exporting)return;try{const ready=await importMedia(file,3000);if(exporting||!painCards.includes(card))return;Object.assign(card,ready,{name:file.name.slice(0,200)});renderPain();invalidateVideo();draw(time);notice('画面已替换。');}catch(e){notice(e.message);}};
 $('addPain').onclick=()=>$('painAddInput').click();
-$('painAddInput').onchange=async e=>{const files=[...e.target.files];e.target.value='';if(!files.length||exporting)return;try{if(files.length+painCards.length>12)throw new Error('最多支持 12 个画面，请减少所选图片。');const ready=await Promise.all(files.map(async file=>({...await importImage(file,3000),name:file.name.slice(0,200),textSlot:null})));if(exporting)return;if(ready.length+painCards.length>12)throw new Error('最多支持 12 个画面。');painCards.push(...ready);renderPain();invalidateVideo();draw(time);notice(`已增加 ${ready.length} 个画面，底部 UI 已同步为 ${painCards.length} 个标记。`);}catch(e){notice(e.message);}};
+$('painAddInput').onchange=async e=>{const files=[...e.target.files];e.target.value='';if(!files.length||exporting)return;try{if(files.length+painCards.length>12)throw new Error('最多支持 12 个画面，请减少所选文件。');const ready=await Promise.all(files.map(async file=>({...await importMedia(file,3000),name:file.name.slice(0,200),textSlot:null})));if(exporting)return;if(ready.length+painCards.length>12)throw new Error('最多支持 12 个画面。');painCards.push(...ready);renderPain();invalidateVideo();draw(time);notice(`已增加 ${ready.length} 个画面，底部 UI 已同步为 ${painCards.length} 个标记。`);}catch(e){notice(e.message);}};
 $('resetPain').onclick=()=>{painCards=painDefaults.map(c=>({...c}));renderPain();invalidateVideo();time=0;draw(time);syncTime();notice('已恢复原始四个画面。');};
 $('painText').onchange=e=>{painKeepText=e.target.checked;invalidateVideo();draw(time);};
 function painSample(l,t){const f=Math.min(l.samples.length-1,Math.max(0,t*100)),i=Math.floor(f),j=Math.min(i+1,l.samples.length-1);return l.samples[i].map((v,k)=>v+(l.samples[j][k]-v)*(f-i));}
@@ -188,11 +242,11 @@ function drawPain(t){
  if(count===4){ctx.save();ctx.globalAlpha*=painTransform(m.layers[0],at);paintPainIcon(at);ctx.restore();}else paintVariablePainIcon(at,progress,count);
  ctx.restore();
 }
-function embeddedImage(im){const c=document.createElement('canvas');c.width=im.width;c.height=im.height;c.getContext('2d').drawImage(im,0,0);return c.toDataURL('image/png');}
+function embeddedImage(im){if(isVideoMedia(im))return im.src;const c=document.createElement('canvas');c.width=im.width;c.height=im.height;c.getContext('2d').drawImage(im,0,0);return c.toDataURL('image/png');}
 async function openPainProject(p){
- const s=p.settings,valid=a=>a&&typeof a.src==='string'&&/^data:image\/(png|jpeg|webp);base64,/.test(a.src)&&typeof a.name==='string'&&a.name.length<=200;
- if(![1,2].includes(p.version)||!s||!validFrameSettings(s)||!Number.isFinite(s.duration)||s.duration<3||s.duration>18||!/^#[0-9a-f]{6}$/i.test(s.background)||typeof p.showText!=='boolean'||!Array.isArray(p.images)||p.images.length<1||p.images.length>12||(p.version===1&&p.images.length!==4)||!p.images.every(valid)||(p.version===2&&p.images.some(a=>a.textSlot!==null&&(!Number.isInteger(a.textSlot)||a.textSlot<0||a.textSlot>3)))||(p.backgroundImage!=null&&!valid(p.backgroundImage)))throw new Error('四大痛点模板参数或素材无效。');
- const ims=await Promise.all(p.images.map(async (a,i)=>({...a,textSlot:p.version===1?i:a.textSlot,image:await imageFrom(a.src)}))),bg=p.backgroundImage?await imageFrom(p.backgroundImage.src):null;
+ const s=p.settings,valid=a=>a&&typeof a.src==='string'&&validMediaSource(a)&&typeof a.name==='string'&&a.name.length<=200;
+ if(![1,2,3].includes(p.version)||!s||!validFrameSettings(s)||!Number.isFinite(s.duration)||s.duration<3||s.duration>18||!/^#[0-9a-f]{6}$/i.test(s.background)||typeof p.showText!=='boolean'||!Array.isArray(p.images)||p.images.length<1||p.images.length>12||(p.version===1&&p.images.length!==4)||!p.images.every(valid)||(p.version>=2&&p.images.some(a=>a.textSlot!==null&&(!Number.isInteger(a.textSlot)||a.textSlot<0||a.textSlot>3)))||(p.backgroundImage!=null&&!valid(p.backgroundImage)))throw new Error('四大痛点模板参数或素材无效。');
+ const ims=await Promise.all(p.images.map(async (a,i)=>({...a,textSlot:p.version===1?i:a.textSlot,image:await mediaFrom(a.src)}))),bg=p.backgroundImage?await imageFrom(p.backgroundImage.src):null;
  switchTemplate('pain');painCards=ims;painKeepText=p.showText;settings={...frameExtras(s),size:s.size,duration:s.duration,background:s.background,scale:100,stack:false};customBackground=p.backgroundImage||null;backgroundImage=bg;time=0;renderPain();syncBackgroundUI();syncSettings();notice('四大痛点模板已打开。');
 }
 
@@ -202,40 +256,40 @@ let buyerCards=buyerSpecs.map((_,i)=>({src:`assets/buyer-${i}.png`,image:null,na
 function renderBuyer(){
  $('buyerCards').replaceChildren();$('buyerCount').textContent=`已上传 ${buyerCards.filter(c=>c.image).length} / ${buyerCards.length} 张`;$('addBuyer').disabled=buyerCards.length>=12;
  buyerCards.forEach((card,i)=>{const wrap=document.createElement('div');wrap.className='pain-item';const b=document.createElement('button');b.className='pain-card buyer-card';b.setAttribute('aria-label',`上传买家秀第 ${i+1} 张`);
- if(card.src){const im=document.createElement('img');im.src=card.src;im.alt=card.name;b.append(im);}else{const empty=document.createElement('div');empty.className='buyer-empty';empty.textContent=String(i+1).padStart(2,'0');b.append(empty);}
- const label=document.createElement('span');label.textContent=`第 ${i+1} 张 · ${card.src?'替换图片':'上传图片'}`;b.append(label);b.onclick=()=>{buyerSelected=card;$('buyerInput').click();};const clear=document.createElement('button');clear.className='text-button pain-remove';clear.textContent='清空图片';clear.disabled=!card.src;clear.setAttribute('aria-label',`清空买家秀第 ${i+1} 张`);clear.onclick=()=>{if(exporting)return;buyerCards[i]={src:null,image:null,name:''};renderBuyer();invalidateVideo();draw(time);};const remove=document.createElement('button');remove.className='text-button pain-remove';remove.textContent='删除此画面';remove.setAttribute('aria-label',`删除买家秀第 ${i+1} 个画面`);remove.disabled=buyerCards.length<=1;remove.onclick=()=>{if(exporting||buyerCards.length<=1)return;buyerCards.splice(i,1);renderBuyer();invalidateVideo();time=0;draw(time);syncTime();notice(`已删除画面，当前共 ${buyerCards.length} 个画面。`);};const actions=document.createElement('div');actions.className='buyer-item-actions';actions.append(clear,remove);wrap.append(b,actions);$('buyerCards').append(wrap);});
+ if(card.src){const im=document.createElement('img');im.src=mediaPoster(card.image,card.src);im.alt=card.name;b.append(im);}else{const empty=document.createElement('div');empty.className='buyer-empty';empty.textContent=String(i+1).padStart(2,'0');b.append(empty);}
+ const label=document.createElement('span');label.textContent=`第 ${i+1} 张 · ${isVideoMedia(card.image)?'视频 · ':''}${card.src?'替换图片 / 视频':'上传图片 / 视频'}`;b.append(label);b.onclick=()=>{buyerSelected=card;$('buyerInput').click();};const clear=document.createElement('button');clear.className='text-button pain-remove';clear.textContent='清空素材';clear.disabled=!card.src;clear.setAttribute('aria-label',`清空买家秀第 ${i+1} 张`);clear.onclick=()=>{if(exporting)return;buyerCards[i]={src:null,image:null,name:''};renderBuyer();invalidateVideo();draw(time);};const remove=document.createElement('button');remove.className='text-button pain-remove';remove.textContent='删除此画面';remove.setAttribute('aria-label',`删除买家秀第 ${i+1} 个画面`);remove.disabled=buyerCards.length<=1;remove.onclick=()=>{if(exporting||buyerCards.length<=1)return;buyerCards.splice(i,1);renderBuyer();invalidateVideo();time=0;draw(time);syncTime();notice(`已删除画面，当前共 ${buyerCards.length} 个画面。`);};const actions=document.createElement('div');actions.className='buyer-item-actions';actions.append(clear,remove);wrap.append(b,actions);$('buyerCards').append(wrap);});
 }
-$('buyerInput').onchange=async e=>{const file=e.target.files[0],card=buyerSelected;e.target.value='';if(!file||exporting)return;try{const ready=await importImage(file,3000);if(exporting||!buyerCards.includes(card))return;Object.assign(card,ready,{name:file.name.slice(0,200)});renderBuyer();invalidateVideo();draw(time);notice('买家秀图片已替换。');}catch(e){notice(e.message);}};
+$('buyerInput').onchange=async e=>{const file=e.target.files[0],card=buyerSelected;e.target.value='';if(!file||exporting)return;try{const ready=await importMedia(file,3000);if(exporting||!buyerCards.includes(card))return;Object.assign(card,ready,{name:file.name.slice(0,200)});renderBuyer();invalidateVideo();draw(time);notice('买家秀素材已替换。');}catch(e){notice(e.message);}};
 $('batchBuyer').onclick=()=>$('buyerBatchInput').click();
-$('buyerBatchInput').onchange=async e=>{const files=[...e.target.files];e.target.value='';if(!files.length||exporting)return;try{if(files.length>buyerCards.length)throw new Error(`当前共 ${buyerCards.length} 个画面，请使用添加图片来增加画面。`);const targets=buyerCards.slice(0,files.length);const ready=await Promise.all(files.map(async f=>({...await importImage(f,3000),name:f.name.slice(0,200)})));if(exporting)return;ready.forEach((c,i)=>{if(buyerCards.includes(targets[i]))Object.assign(targets[i],c);});renderBuyer();invalidateVideo();draw(time);notice(`已替换前 ${ready.length} 张买家秀图片。`);}catch(e){notice(e.message);}};
+$('buyerBatchInput').onchange=async e=>{const files=[...e.target.files];e.target.value='';if(!files.length||exporting)return;try{if(files.length>buyerCards.length)throw new Error(`当前共 ${buyerCards.length} 个画面，请使用添加素材来增加画面。`);const targets=buyerCards.slice(0,files.length);const ready=await Promise.all(files.map(async f=>({...await importMedia(f,3000),name:f.name.slice(0,200)})));if(exporting)return;ready.forEach((c,i)=>{if(buyerCards.includes(targets[i]))Object.assign(targets[i],c);});renderBuyer();invalidateVideo();draw(time);notice(`已替换前 ${ready.length} 个买家秀素材。`);}catch(e){notice(e.message);}};
 $('addBuyer').onclick=()=>$('buyerAddInput').click();
-$('buyerAddInput').onchange=async e=>{const files=[...e.target.files];e.target.value='';if(!files.length||exporting)return;try{if(files.length+buyerCards.length>12)throw new Error('最多支持 12 个画面，请减少所选图片。');const ready=await Promise.all(files.map(async f=>({...await importImage(f,3000),name:f.name.slice(0,200)})));if(exporting)return;if(ready.length+buyerCards.length>12)throw new Error('最多支持 12 个画面。');buyerCards.push(...ready);renderBuyer();invalidateVideo();time=0;draw(time);syncTime();notice(`已增加 ${ready.length} 个画面，当前共 ${buyerCards.length} 个画面。`);}catch(e){notice(e.message);}};
+$('buyerAddInput').onchange=async e=>{const files=[...e.target.files];e.target.value='';if(!files.length||exporting)return;try{if(files.length+buyerCards.length>12)throw new Error('最多支持 12 个画面，请减少所选文件。');const ready=await Promise.all(files.map(async f=>({...await importMedia(f,3000),name:f.name.slice(0,200)})));if(exporting)return;if(ready.length+buyerCards.length>12)throw new Error('最多支持 12 个画面。');buyerCards.push(...ready);renderBuyer();invalidateVideo();time=0;draw(time);syncTime();notice(`已增加 ${ready.length} 个画面，当前共 ${buyerCards.length} 个画面。`);}catch(e){notice(e.message);}};
 function drawVariableBuyer(t){
  const count=buyerCards.length,phase=Math.min(.999999,Math.max(0,t/settings.duration))*count,step=Math.floor(phase),progress=count===1?0:step+Math.min(1,(phase-step)/.8),first=Math.floor(progress),fit=Math.min(canvas.width/3000,canvas.height/3000);
  ctx.save();ctx.translate((canvas.width-3000*fit)/2,(canvas.height-3000*fit)/2);ctx.scale(fit,fit);ctx.beginPath();ctx.rect(0,0,3000,3000);ctx.clip();
- for(let i=first;i<=first+1;i++){const index=i%count,card=buyerCards[index];ctx.save();ctx.translate((i-progress)*3000,0);ctx.beginPath();ctx.rect(0,0,3000,3000);ctx.clip();if(card.image){const z=Math.max(3000/card.image.width,3000/card.image.height);ctx.drawImage(card.image,(3000-card.image.width*z)/2,(3000-card.image.height*z)/2,card.image.width*z,card.image.height*z);}else{ctx.fillStyle='#e9eef7';ctx.fillRect(0,0,3000,3000);ctx.fillStyle='#7082a0';ctx.textAlign='center';ctx.font='600 300px sans-serif';ctx.fillText(String(index+1).padStart(2,'0'),1500,1400);ctx.font='100px "Microsoft YaHei",sans-serif';ctx.fillText('等待上传图片',1500,1700);}ctx.restore();}ctx.restore();
+ for(let i=first;i<=first+1;i++){const index=i%count,card=buyerCards[index];ctx.save();ctx.translate((i-progress)*3000,0);ctx.beginPath();ctx.rect(0,0,3000,3000);ctx.clip();if(card.image){const z=Math.max(3000/card.image.width,3000/card.image.height);ctx.drawImage(card.image,(3000-card.image.width*z)/2,(3000-card.image.height*z)/2,card.image.width*z,card.image.height*z);}else{ctx.fillStyle='#e9eef7';ctx.fillRect(0,0,3000,3000);ctx.fillStyle='#7082a0';ctx.textAlign='center';ctx.font='600 300px sans-serif';ctx.fillText(String(index+1).padStart(2,'0'),1500,1400);ctx.font='100px "Microsoft YaHei",sans-serif';ctx.fillText('等待上传图片 / 视频',1500,1700);}ctx.restore();}ctx.restore();
 }
 function drawBuyer(t){
  if(buyerCards.length!==4){drawVariableBuyer(t);return;}
 
  const m=window.BUYER_MOTION,at=Math.min(5.99999,Math.max(0,t/settings.duration*6)),fit=Math.min(canvas.width/3000,canvas.height/3000);
  function transform(l,t){const f=Math.min(l.samples.length-1,Math.max(0,t*m.sampleRate)),i=Math.floor(f),j=Math.min(i+1,l.samples.length-1),v=l.samples[i].map((x,k)=>x+(l.samples[j][k]-x)*(f-i));ctx.translate(v[0],v[1]);ctx.rotate(v[4]*Math.PI/180);ctx.scale(v[2]/100,v[3]/100);ctx.translate(-v[6],-v[7]);ctx.globalAlpha*=v[5]/100;}
- function comp(id,t){const co=m.comps.find(c=>c.id===id);ctx.save();ctx.beginPath();ctx.rect(0,0,co.width,co.height);ctx.clip();for(const l of [...co.layers].reverse()){ctx.save();transform(l,t);if(m.comps.some(c=>c.id===l.source))comp(l.source,(t-l.startTime)*100/l.stretch);else{const slot=buyerSpecs.findIndex(x=>x.id===l.source);if(slot>=0){const card=buyerCards[slot],sp=buyerSpecs[slot],w=sp.width,h=sp.height;ctx.save();ctx.beginPath();ctx.rect(0,0,w,h);ctx.clip();if(card.image){const z=Math.max(w/card.image.width,h/card.image.height);ctx.drawImage(card.image,(w-card.image.width*z)/2,(h-card.image.height*z)/2,card.image.width*z,card.image.height*z);}else{ctx.fillStyle=['#e9eef7','#edf2f6','#e8edf4','#f0f3f8'][slot];ctx.fillRect(0,0,w,h);ctx.fillStyle='#7082a0';ctx.textAlign='center';ctx.textBaseline='middle';ctx.font=`600 ${w*.12}px sans-serif`;ctx.fillText(String(slot+1).padStart(2,'0'),w/2,h/2-w*.07);ctx.font=`${w*.035}px "Microsoft YaHei",sans-serif`;ctx.fillText('等待上传图片',w/2,h/2+w*.05);}ctx.restore();}}ctx.restore();}ctx.restore();}
+ function comp(id,t){const co=m.comps.find(c=>c.id===id);ctx.save();ctx.beginPath();ctx.rect(0,0,co.width,co.height);ctx.clip();for(const l of [...co.layers].reverse()){ctx.save();transform(l,t);if(m.comps.some(c=>c.id===l.source))comp(l.source,(t-l.startTime)*100/l.stretch);else{const slot=buyerSpecs.findIndex(x=>x.id===l.source);if(slot>=0){const card=buyerCards[slot],sp=buyerSpecs[slot],w=sp.width,h=sp.height;ctx.save();ctx.beginPath();ctx.rect(0,0,w,h);ctx.clip();if(card.image){const z=Math.max(w/card.image.width,h/card.image.height);ctx.drawImage(card.image,(w-card.image.width*z)/2,(h-card.image.height*z)/2,card.image.width*z,card.image.height*z);}else{ctx.fillStyle=['#e9eef7','#edf2f6','#e8edf4','#f0f3f8'][slot];ctx.fillRect(0,0,w,h);ctx.fillStyle='#7082a0';ctx.textAlign='center';ctx.textBaseline='middle';ctx.font=`600 ${w*.12}px sans-serif`;ctx.fillText(String(slot+1).padStart(2,'0'),w/2,h/2-w*.07);ctx.font=`${w*.035}px "Microsoft YaHei",sans-serif`;ctx.fillText('等待上传图片 / 视频',w/2,h/2+w*.05);}ctx.restore();}}ctx.restore();}ctx.restore();}
  ctx.save();ctx.translate((canvas.width-3000*fit)/2,(canvas.height-3000*fit)/2);ctx.scale(fit,fit);comp(2,at);ctx.restore();
 }
 async function openBuyerProject(p){
- const s=p.settings,valid=a=>a&&typeof a.name==='string'&&a.name.length<=200&&typeof a.src==='string'&&/^data:image\/(png|jpeg|webp);base64,/.test(a.src);
- if(![1,2].includes(p.version)||!s||!validFrameSettings(s)||!Number.isFinite(s.duration)||s.duration<3||s.duration>18||!/^#[0-9a-f]{6}$/i.test(s.background)||!Array.isArray(p.images)||p.images.length<1||p.images.length>12||(p.version===1&&p.images.length!==4)||!p.images.every(a=>a===null||valid(a))||(p.backgroundImage!=null&&!valid(p.backgroundImage)))throw new Error('买家秀模板参数或图片无效。');
- const ims=await Promise.all(p.images.map(async a=>a?{...a,image:await imageFrom(a.src)}:{src:null,image:null,name:''})),bg=p.backgroundImage?await imageFrom(p.backgroundImage.src):null;
+ const s=p.settings,valid=a=>a&&typeof a.name==='string'&&a.name.length<=200&&typeof a.src==='string'&&validMediaSource(a);
+ if(![1,2,3].includes(p.version)||!s||!validFrameSettings(s)||!Number.isFinite(s.duration)||s.duration<3||s.duration>18||!/^#[0-9a-f]{6}$/i.test(s.background)||!Array.isArray(p.images)||p.images.length<1||p.images.length>12||(p.version===1&&p.images.length!==4)||!p.images.every(a=>a===null||valid(a))||(p.backgroundImage!=null&&!valid(p.backgroundImage)))throw new Error('买家秀模板参数或图片无效。');
+ const ims=await Promise.all(p.images.map(async a=>a?{...a,image:await mediaFrom(a.src)}:{src:null,image:null,name:''})),bg=p.backgroundImage?await imageFrom(p.backgroundImage.src):null;
  switchTemplate('buyer');buyerCards=ims;settings={...frameExtras(s),size:s.size,duration:s.duration,background:s.background,scale:100,stack:false};customBackground=p.backgroundImage||null;backgroundImage=bg;time=0;renderBuyer();syncBackgroundUI();syncSettings();notice('买家秀模板已打开。');
 }
 
 
 let bodyCards=[0,1].map(i=>({name:['男生画面','女生画面'][i],src:`assets/body-${i}.png`,image:null})),bodyDefaults=[],bodyUi=[],bodySelected=null;
 function renderBody(){
- $('bodyCards').replaceChildren();bodyCards.forEach((card,i)=>{const b=document.createElement('button');b.className='pain-card body-card';b.setAttribute('aria-label',`替换体型不设限第 ${i+1} 张`);const im=document.createElement('img');im.src=card.src;im.alt=card.name;const label=document.createElement('span');label.textContent=`${i===0?'左侧画面':'右侧画面'} · 替换图片`;b.append(im,label);b.onclick=()=>{bodySelected=card;$('bodyInput').click();};$('bodyCards').append(b);});
+ $('bodyCards').replaceChildren();bodyCards.forEach((card,i)=>{const b=document.createElement('button');b.className='pain-card body-card';b.setAttribute('aria-label',`替换体型不设限第 ${i+1} 张`);const im=document.createElement('img');im.src=mediaPoster(card.image,card.src);im.alt=card.name;const label=document.createElement('span');label.textContent=`${i===0?'左侧画面':'右侧画面'} · ${isVideoMedia(card.image)?'视频 · ':''}替换图片 / 视频`;b.append(im,label);b.onclick=()=>{bodySelected=card;$('bodyInput').click();};$('bodyCards').append(b);});
 }
-$('bodyInput').onchange=async e=>{const file=e.target.files[0],target=bodySelected;e.target.value='';if(!file||exporting)return;try{const ready=await importImage(file,4096);if(exporting||!bodyCards.includes(target))return;Object.assign(target,ready,{name:file.name.slice(0,200)});renderBody();invalidateVideo();draw(time);notice('图片已替换，分隔线动画保持不变。');}catch(e){notice(e.message);}};
+$('bodyInput').onchange=async e=>{const file=e.target.files[0],target=bodySelected;e.target.value='';if(!file||exporting)return;try{const ready=await importMedia(file,4096);if(exporting||!bodyCards.includes(target))return;Object.assign(target,ready,{name:file.name.slice(0,200)});renderBody();invalidateVideo();draw(time);notice('素材已替换，分隔线动画保持不变。');}catch(e){notice(e.message);}};
 $('resetBody').onclick=()=>{if(exporting)return;bodyCards=bodyDefaults.map(c=>({...c}));renderBody();invalidateVideo();draw(time);notice('已恢复原工程的两张图片。');};
 function drawBody(t){
  const m=window.BODY_MOTION;if(bodyCards.some(c=>!c.image)||bodyUi.length!==4)return;
@@ -248,9 +302,9 @@ function drawBody(t){
  const v=sample(m.layers[0]);m.groups.forEach((g,k)=>{const alpha=(g.opacity[i]+(g.opacity[j]-g.opacity[i])*mix)/100,b=g.box;ctx.save();ctx.globalAlpha*=alpha*v[5]/100;if(k===3)ctx.drawImage(bodyUi[k],b[0]+v[0]-1225,0,b[2]-b[0],3500);else ctx.drawImage(bodyUi[k],b[0]+v[0]-1225,b[1]+v[1]-1750);ctx.restore();});ctx.restore();
 }
 async function openBodyProject(p){
- const s=p.settings,valid=a=>a&&typeof a.name==='string'&&a.name.length<=200&&typeof a.src==='string'&&/^data:image\/(png|jpeg|webp);base64,/.test(a.src);
- if(p.version!==1||!s||!validFrameSettings(s)||!Number.isFinite(s.duration)||s.duration<3||s.duration>18||!/^#[0-9a-f]{6}$/i.test(s.background)||!Array.isArray(p.images)||p.images.length!==2||!p.images.every(valid)||(p.backgroundImage!=null&&!valid(p.backgroundImage)))throw new Error('体型不设限模板参数或图片无效。');
- const ims=await Promise.all(p.images.map(async a=>({...a,image:await imageFrom(a.src)}))),bg=p.backgroundImage?await imageFrom(p.backgroundImage.src):null;
+ const s=p.settings,valid=a=>a&&typeof a.name==='string'&&a.name.length<=200&&typeof a.src==='string'&&validMediaSource(a);
+ if(![1,2].includes(p.version)||!s||!validFrameSettings(s)||!Number.isFinite(s.duration)||s.duration<3||s.duration>18||!/^#[0-9a-f]{6}$/i.test(s.background)||!Array.isArray(p.images)||p.images.length!==2||!p.images.every(valid)||(p.backgroundImage!=null&&!valid(p.backgroundImage)))throw new Error('体型不设限模板参数或图片无效。');
+ const ims=await Promise.all(p.images.map(async a=>({...a,image:await mediaFrom(a.src)}))),bg=p.backgroundImage?await imageFrom(p.backgroundImage.src):null;
  switchTemplate('body');bodyCards=ims;settings={...frameExtras(s),size:s.size,duration:s.duration,background:s.background,scale:100,stack:false};customBackground=p.backgroundImage||null;backgroundImage=bg;time=0;renderBody();syncBackgroundUI();syncSettings();notice('体型不设限模板已打开。');
 }
 
@@ -258,7 +312,7 @@ const templateStates={};
 function switchTemplate(mode){
   if(exporting||mode===activeTemplate)return;
   templateStates[activeTemplate]={settings:{...settings},customBackground,backgroundImage,time};
-  pauseSmart();activeTemplate=mode;
+  pauseSmart();pauseTemplateMedia();activeTemplate=mode;
   const saved=templateStates[mode];
   settings=saved?saved.settings:{size:mode==='smart'?'1668,1455':mode==='body'?'980,1400':mode==='buyer'?'1080,1080':mode==='pain'?'1500,1342':'1500,1214',duration:mode==='smart'?10.44:mode==='body'?4:mode==='buyer'?6:8,scale:100,background:mode==='smart'?'#ffe3c9':'#ffffff',stack:false};
   customBackground=saved?saved.customBackground:null;backgroundImage=saved?saved.backgroundImage:null;time=saved?saved.time:0;
@@ -268,9 +322,9 @@ function switchTemplate(mode){
   syncBackgroundUI();syncSettings();notice('');if(mode==='smart'&&!smartReady){notice('正在加载动态人物素材…');ensureSmart().catch(()=>{});}
 }
 $('templateMode').onchange=e=>switchTemplate(e.target.value);
-function syncLongUI(){$('longPreview').src=longSource;$('longName').textContent=longName;}
+function syncLongUI(){$('longPreview').src=mediaPoster(longImage,longSource);$('longName').textContent=longName;}
 $('uploadLong').onclick=()=>$('longInput').click();
-$('longInput').onchange=async e=>{const file=e.target.files[0];e.target.value='';if(!file||exporting)return;try{const ready=await importImage(file,8192);if(exporting)return;longImage=ready.image;longSource=ready.src;longName=file.name.slice(0,200);syncLongUI();invalidateVideo();draw(time);notice('长图已替换。');}catch(e){notice(e.message);}};
+$('longInput').onchange=async e=>{const file=e.target.files[0];e.target.value='';if(!file||exporting)return;try{const ready=await importMedia(file,8192);if(exporting)return;longImage=ready.image;longSource=ready.src;longName=(ready.kind==='video'?'视频 · ':'')+file.name.slice(0,190);syncLongUI();invalidateVideo();draw(time);notice('横向滚动素材已替换，支持图片与视频。');}catch(e){notice(e.message);}};
 $('resetLong').onclick=()=>{longImage=defaultLongImage;longSource=defaultLongImage.src;longName='AE 原始长图';syncLongUI();invalidateVideo();draw(time);};
 function drawLong(t){
   if(!longImage)return;
@@ -284,10 +338,10 @@ function drawLong(t){
 }
 async function openLongProject(p){
   const s=p.settings,asset=p.longImage,bg=p.backgroundImage;
-  if(p.version!==1||!s||!validFrameSettings(s)||!Number.isFinite(s.duration)||s.duration<3||s.duration>18||!/^#[0-9a-f]{6}$/i.test(s.background))throw new Error('长图模板参数无效。');
-  const valid=a=>a&&typeof a.src==='string'&&/^data:image\/(png|jpeg|webp);base64,/.test(a.src)&&typeof a.name==='string'&&a.name.length<=200;
+  if(![1,2].includes(p.version)||!s||!validFrameSettings(s)||!Number.isFinite(s.duration)||s.duration<3||s.duration>18||!/^#[0-9a-f]{6}$/i.test(s.background))throw new Error('长图模板参数无效。');
+  const valid=a=>a&&typeof a.src==='string'&&validMediaSource(a)&&typeof a.name==='string'&&a.name.length<=200;
   if(!valid(asset)||(bg!=null&&!valid(bg)))throw new Error('长图模板素材无效。');
-  const [im,bim]=await Promise.all([imageFrom(asset.src),bg?imageFrom(bg.src):Promise.resolve(null)]);
+  const [im,bim]=await Promise.all([mediaFrom(asset.src),bg?imageFrom(bg.src):Promise.resolve(null)]);
   switchTemplate('plain');longImage=im;longSource=asset.src;longName=asset.name;settings={...frameExtras(s),size:s.size,duration:s.duration,background:s.background,scale:100,stack:false};customBackground=bg||null;backgroundImage=bim;time=0;syncLongUI();syncBackgroundUI();syncSettings();notice('长图模板已打开。');
 }
 function sampleLayer(layer,t){
@@ -334,6 +388,7 @@ function paintComp(id,t){
   }
 }
 function draw(t){
+  syncTemplateMedia(t);
   const w=canvas.width,h=canvas.height;ctx.clearRect(0,0,w,h);ctx.fillStyle=settings.background;ctx.fillRect(0,0,w,h);
   if(backgroundImage){const z=Math.max(w/backgroundImage.width,h/backgroundImage.height);ctx.drawImage(backgroundImage,(w-backgroundImage.width*z)/2,(h-backgroundImage.height*z)/2,backgroundImage.width*z,backgroundImage.height*z);}
   ctx.save();const contentZoom=(settings.contentScale??100)/100;ctx.translate(w/2,h/2);ctx.scale(contentZoom,contentZoom);ctx.translate(-w/2,-h/2);
@@ -352,7 +407,7 @@ function draw(t){
   }finally{ctx.restore();}
 }
 function syncTime(){ $('timeline').value=time;$('timecode').textContent=time.toFixed(2).padStart(5,'0'); }
-function setPlaying(value){if(!value)pauseSmart();playing=value;last=0;$('play').textContent=value?'Ⅱ':'▶';$('play').setAttribute('aria-label',value?'暂停动画':'播放动画');}
+function setPlaying(value){if(!value){pauseSmart();pauseTemplateMedia();}playing=value;last=0;$('play').textContent=value?'Ⅱ':'▶';$('play').setAttribute('aria-label',value?'暂停动画':'播放动画');}
 function loop(timestamp){if(playing&&!exporting){if(last)time=(time+(timestamp-last)/1000)%settings.duration;last=timestamp;draw(time);syncTime();}requestAnimationFrame(loop);}
 function validFrameSettings(s){
   if(!s||typeof s.size!=='string'||!/^\d+,\d+$/.test(s.size))return false;
@@ -394,24 +449,24 @@ function syncSettings(){
 function downloadBlob(blob,filename){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);}
 async function saveProject(){try{
  if(activeTemplate==='smart'){await saveSmartProject();return;}
- if(activeTemplate==='body'){if(bodyCards.some(c=>!c.image))throw new Error('请等待素材加载完成。');downloadBlob(new Blob([JSON.stringify({type:'body-compare',version:1,settings,images:bodyCards.map(c=>({name:c.name,src:embeddedImage(c.image)})),backgroundImage:customBackground})],{type:'application/json'}),'体型不设限模板.json');notice('体型不设限模板已保存。');return;}
- if(activeTemplate==='buyer'){downloadBlob(new Blob([JSON.stringify({type:'buyer-carousel',version:2,settings,images:buyerCards.map(c=>c.image?{name:c.name,src:embeddedImage(c.image)}:null),backgroundImage:customBackground})],{type:'application/json'}),'买家秀模板.json');notice('买家秀模板已保存，可下次继续上传图片。');return;}
-  if(activeTemplate==='pain'){if(painCards.some(c=>!c.image))throw new Error('请等待素材加载完成。');downloadBlob(new Blob([JSON.stringify({type:'pain-carousel',version:2,settings,showText:painKeepText,images:painCards.map(c=>({name:c.name,src:embeddedImage(c.image),textSlot:c.textSlot})),backgroundImage:customBackground})],{type:'application/json'}),'四大痛点轮播模板.json');notice('四大痛点模板已保存，包含全部图片、画面数量、文案开关和画面参数。');return;}
+ if(activeTemplate==='body'){if(bodyCards.some(c=>!c.image))throw new Error('请等待素材加载完成。');downloadBlob(new Blob([JSON.stringify({type:'body-compare',version:2,settings,images:bodyCards.map(c=>({name:c.name,kind:mediaKind(c.image),src:embeddedImage(c.image)})),backgroundImage:customBackground})],{type:'application/json'}),'体型不设限模板.json');notice('体型不设限模板已保存。');return;}
+ if(activeTemplate==='buyer'){downloadBlob(new Blob([JSON.stringify({type:'buyer-carousel',version:3,settings,images:buyerCards.map(c=>c.image?{name:c.name,kind:mediaKind(c.image),src:embeddedImage(c.image)}:null),backgroundImage:customBackground})],{type:'application/json'}),'买家秀模板.json');notice('买家秀模板已保存，可下次继续替换图片或视频。');return;}
+  if(activeTemplate==='pain'){if(painCards.some(c=>!c.image))throw new Error('请等待素材加载完成。');downloadBlob(new Blob([JSON.stringify({type:'pain-carousel',version:3,settings,showText:painKeepText,images:painCards.map(c=>({name:c.name,kind:mediaKind(c.image),src:embeddedImage(c.image),textSlot:c.textSlot})),backgroundImage:customBackground})],{type:'application/json'}),'四大痛点轮播模板.json');notice('四大痛点模板已保存，包含全部图片和视频、画面数量、文案开关和画面参数。');return;}
   if(activeTemplate==='plain'){
     if(!longImage)throw new Error('请等待长图加载完成。');
-    const temp=document.createElement('canvas');temp.width=longImage.width;temp.height=longImage.height;temp.getContext('2d').drawImage(longImage,0,0);
-    downloadBlob(new Blob([JSON.stringify({type:'long-scroll',version:1,settings,longImage:{src:temp.toDataURL('image/png'),name:longName},backgroundImage:customBackground})],{type:'application/json'}),'长图横向滚动模板.json');notice('长图模板已保存，包含长图、背景和画面参数。');return;
+
+    downloadBlob(new Blob([JSON.stringify({type:'long-scroll',version:2,settings,longImage:{src:embeddedImage(longImage),kind:mediaKind(longImage),name:longName},backgroundImage:customBackground})],{type:'application/json'}),'长图横向滚动模板.json');notice('长图模板已保存，包含长图、背景和画面参数。');return;
   }
-  const exported=cards.map(c=>{const temp=document.createElement('canvas');temp.width=c.image.width;temp.height=c.image.height;temp.getContext('2d').drawImage(c.image,0,0);return {title:c.title,src:temp.toDataURL('image/png'),original:!!c.original};});
-  downloadBlob(new Blob([JSON.stringify({type:'course-carousel',version:1,settings,cards:exported,trail:customStack,backgroundImage:customBackground})],{type:'application/json'}),'课程轮播模板.json');notice('模板已保存，包含六张图片、拖尾、背景图片和画面参数。下次用「打开模板」继续编辑。');
+  const exported=cards.map(c=>({title:c.title,src:embeddedImage(c.image),kind:mediaKind(c.image),original:!!c.original}));
+  downloadBlob(new Blob([JSON.stringify({type:'course-carousel',version:2,settings,cards:exported,trail:customStack,backgroundImage:customBackground})],{type:'application/json'}),'课程轮播模板.json');notice('模板已保存，包含六张图片或视频、拖尾、背景图片和画面参数。下次用「打开模板」继续编辑。');
 }catch(e){notice('保存失败：'+e.message);}}
 function validateProject(p){
-  if(p.type!=='course-carousel'||p.version!==1||!Array.isArray(p.cards)||p.cards.length!==6)throw new Error('这不是有效的轮播模板文件。');
+  if(p.type!=='course-carousel'||![1,2].includes(p.version)||!Array.isArray(p.cards)||p.cards.length!==6)throw new Error('这不是有效的轮播模板文件。');
   if(p.trail!=null&&(typeof p.trail.src!=='string'||!/^data:image\/png;base64,/.test(p.trail.src)||typeof p.trail.name!=='string'||p.trail.name.length>200))throw new Error('模板拖尾素材无效。');
   if(p.backgroundImage!=null&&(typeof p.backgroundImage.src!=='string'||!/^data:image\/(png|jpeg|webp);base64,/.test(p.backgroundImage.src)||typeof p.backgroundImage.name!=='string'||p.backgroundImage.name.length>200))throw new Error('模板背景图片无效。');
   const s=p.settings,allowed=[...$('size').options].map(o=>o.value);
   if(!s||!validFrameSettings(s)||!Number.isFinite(s.duration)||s.duration<3||s.duration>18||!Number.isFinite(s.scale)||s.scale<65||s.scale>115||!/^#[0-9a-f]{6}$/i.test(s.background)||typeof s.stack!=='boolean')throw new Error('模板中的画面参数无效。');
-  for(const c of p.cards)if(typeof c.title!=='string'||c.title.length>24||typeof c.src!=='string'||!/^data:image\/(png|jpeg|webp);base64,/.test(c.src))throw new Error('模板图片或标题无效。');
+  for(const c of p.cards)if(typeof c.title!=='string'||c.title.length>24||typeof c.src!=='string'||!validMediaSource(c))throw new Error('模板图片或标题无效。');
 }
 function showExportDialog(title,detail){
   $('exportTitle').textContent=title;$('exportDetail').textContent=detail;
@@ -420,7 +475,7 @@ function showExportDialog(title,detail){
 function exportProblem(message){$('download').hidden=true;showExportDialog('暂时无法导出',message);notice(message);}
 async function exportVideo(){
   if(exporting)return;
-  if(activeTemplate==='buyer'&&buyerCards.some(c=>!c.image)){exportProblem('请先补齐当前所有画面的图片，再导出视频。');return;}
+  if(activeTemplate==='buyer'&&buyerCards.some(c=>!c.image)){exportProblem('请先补齐当前所有画面的素材，再导出视频。');return;}
   if(!supportedMime||!canvas.captureStream){exportProblem('当前浏览器不支持视频导出，请使用最新版 Chrome 或 Edge 打开此页面。');return;}
   if(activeTemplate==='smart'?!smartReady:activeTemplate==='body'?(bodyCards.some(c=>!c.image)||bodyUi.length!==4):activeTemplate==='plain'?!longImage:activeTemplate==='pain'?(!painIcons||painCards.some(c=>!c.image)):cards.some(c=>!c.image)){exportProblem('素材仍在加载，请稍后重新导出。');return;}
   exporting=true;setPlaying(false);document.body.classList.add('exporting');$('exportState').hidden=false;$('exportProgress').value=0;$('download').hidden=true;notice('');$('exportMessage').textContent='正在准备…';$('closeExport').hidden=true;showExportDialog('正在导出视频','正在准备画面，完成后会自动开始下载。');
@@ -429,7 +484,7 @@ async function exportVideo(){
   let stream,recorder,raf,timer,cancelled=false;
   cancelRecording=()=>{cancelled=true;if(recorder&&recorder.state!=='inactive')recorder.stop();};
   try{
-    if(activeTemplate==='smart')await prepareSmartExport();if(cancelled){showExportDialog('导出已取消','可以关闭此窗口后重新导出。');return;}time=0;draw(0);syncTime();stream=canvas.captureStream(activeTemplate==='body'?30:activeTemplate==='plain'?24:25);
+    if(activeTemplate==='smart')await prepareSmartExport();else await prepareTemplateExport();if(cancelled){showExportDialog('导出已取消','可以关闭此窗口后重新导出。');return;}time=0;draw(0);syncTime();stream=canvas.captureStream(activeTemplate==='body'?30:activeTemplate==='plain'?24:25);
     recorder=new MediaRecorder(stream,{mimeType:supportedMime,videoBitsPerSecond:12000000});
     const chunks=[];
     await new Promise((resolve,reject)=>{
@@ -450,9 +505,9 @@ async function exportVideo(){
 $('play').onclick=()=>setPlaying(!playing);$('replay').onclick=()=>{time=0;draw(0);syncTime();setPlaying(true);};$('timeline').oninput=()=>{setPlaying(false);time=Number($('timeline').value);draw(time);syncTime();};
 ['duration','scale','background','stack'].forEach(k=>$(k).addEventListener('input',()=>{if(k==='background'&&activeTemplate==='smart'){settings.originalBackground=false;syncBackgroundUI();}settings[k]=k==='stack'?$(k).checked:['duration','scale'].includes(k)?Number($(k).value):$(k).value;syncSettings();}));
 $('resetSettings').onclick=()=>{settings=activeTemplate==='smart'?{size:'1668,1455',duration:10.44,scale:100,background:'#ffe3c9',stack:false,originalBackground:true}:activeTemplate==='body'?{size:'980,1400',duration:4,scale:100,background:'#ffffff',stack:false}:activeTemplate==='buyer'?{size:'1080,1080',duration:6,scale:100,background:'#ffffff',stack:false}:activeTemplate==='pain'?{size:'1500,1342',duration:8,scale:100,background:'#ffffff',stack:false}:activeTemplate==='plain'?{size:'1500,1214',duration:8,scale:100,background:'#ffffff',stack:false}:{size:'1176,1144',duration:6,scale:100,background:'#f2f2f2',stack:true};syncSettings();};
-$('imageInput').onchange=async e=>{const file=e.target.files[0],index=selected;e.target.value='';if(!file)return;try{const result=await importImage(file);Object.assign(cards[index],result);invalidateVideo();renderCards();draw(time);notice(`第 ${index+1} 张卡片已替换。`);}catch(e){notice(e.message);}};
-$('batchUpload').onclick=()=>$('batchInput').click();$('batchInput').onchange=async e=>{const files=[...e.target.files];e.target.value='';if(!files.length)return;if(files.length>6){notice('一次最多选择 6 张图片，请重新选择。');return;}try{const imported=await Promise.all(files.map(file=>importImage(file)));imported.forEach((c,i)=>Object.assign(cards[i],c));invalidateVideo();renderCards();draw(time);notice(`已按所选文件顺序替换前 ${files.length} 张卡片，可用前移、后移调整。`);}catch(e){notice(e.message);}};
-$('saveProject').onclick=saveProject;$('loadProject').onclick=()=>$('projectInput').click();$('projectInput').onchange=async e=>{const file=e.target.files[0];e.target.value='';if(!file)return;try{if(file.size>750*1024*1024)throw new Error('模板文件过大，请选择 750 MB 以内的文件。');const p=JSON.parse(await file.text());if(p.type==='smart-carousel'){await openSmartProject(p);return;}if(p.type==='body-compare'){await openBodyProject(p);return;}if(p.type==='buyer-carousel'){await openBuyerProject(p);return;}if(p.type==='pain-carousel'){await openPainProject(p);return;}if(p.type==='long-scroll'){await openLongProject(p);return;}validateProject(p);const ready=await Promise.all(p.cards.map(async c=>({...c,image:await imageFrom(c.src)})));const trailImage=p.trail?await imageFrom(p.trail.src):defaultStackImage;const loadedBackground=p.backgroundImage?await imageFrom(p.backgroundImage.src):null;switchTemplate('cards');cards=ready;settings=p.settings;customBackground=p.backgroundImage||null;backgroundImage=loadedBackground;syncBackgroundUI();customStack=p.trail||null;stackImage=trailImage;syncStackUI();time=0;renderCards();syncSettings();notice('模板已打开，可以继续替换素材。');}catch(e){notice('打开失败：'+e.message);}};
+$('imageInput').onchange=async e=>{const file=e.target.files[0],index=selected;e.target.value='';if(!file)return;try{const result=await importMedia(file);Object.assign(cards[index],result);invalidateVideo();renderCards();draw(time);notice(`第 ${index+1} 张卡片已替换。`);}catch(e){notice(e.message);}};
+$('batchUpload').onclick=()=>$('batchInput').click();$('batchInput').onchange=async e=>{const files=[...e.target.files];e.target.value='';if(!files.length)return;if(files.length>6){notice('一次最多选择 6 个素材，请重新选择。');return;}try{const imported=await Promise.all(files.map(file=>importMedia(file)));imported.forEach((c,i)=>Object.assign(cards[i],c));invalidateVideo();renderCards();draw(time);notice(`已按所选文件顺序替换前 ${files.length} 张卡片，可用前移、后移调整。`);}catch(e){notice(e.message);}};
+$('saveProject').onclick=saveProject;$('loadProject').onclick=()=>$('projectInput').click();$('projectInput').onchange=async e=>{const file=e.target.files[0];e.target.value='';if(!file)return;try{if(file.size>750*1024*1024)throw new Error('模板文件过大，请选择 750 MB 以内的文件。');const p=JSON.parse(await file.text());if(p.type==='smart-carousel'){await openSmartProject(p);return;}if(p.type==='body-compare'){await openBodyProject(p);return;}if(p.type==='buyer-carousel'){await openBuyerProject(p);return;}if(p.type==='pain-carousel'){await openPainProject(p);return;}if(p.type==='long-scroll'){await openLongProject(p);return;}validateProject(p);const ready=await Promise.all(p.cards.map(async c=>({...c,image:await mediaFrom(c.src)})));const trailImage=p.trail?await imageFrom(p.trail.src):defaultStackImage;const loadedBackground=p.backgroundImage?await imageFrom(p.backgroundImage.src):null;switchTemplate('cards');cards=ready;settings=p.settings;customBackground=p.backgroundImage||null;backgroundImage=loadedBackground;syncBackgroundUI();customStack=p.trail||null;stackImage=trailImage;syncStackUI();time=0;renderCards();syncSettings();notice('模板已打开，可以继续替换素材。');}catch(e){notice('打开失败：'+e.message);}};
 $('closeExport').onclick=()=>$('exportDialog').close();$('exportDialog').addEventListener('cancel',e=>{if(exporting){e.preventDefault();cancelRecording?.();}});
 $('export').onclick=exportVideo;$('exportTop').onclick=exportVideo;$('cancelExport').onclick=()=>cancelRecording?.();document.addEventListener('visibilitychange',()=>{if(document.hidden&&exporting)cancelRecording?.();});
 $('formatLabel').textContent=supportedMime?`${extension.toUpperCase()} · 25 FPS`:'暂不支持';$('formatHint').textContent=supportedMime?`导出 ${extension.toUpperCase()} 无声视频，包含完整一轮。${extension==='webm'?'此浏览器不支持 MP4 录制，将使用 WebM。':''}`:'请用最新版 Chrome 或 Edge 导出视频。';
