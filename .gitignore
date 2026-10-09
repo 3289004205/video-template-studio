@@ -1,0 +1,14 @@
+.env
+.env.*
+!.env.example
+.openai/
+.codex/
+.codex-tmp/
+node_modules/
+__pycache__/
+*.log
+*.aep
+*.aepx
+*.zip
+Thumbs.db
+.DS_Store
