@@ -191,9 +191,9 @@ function drawPain(t){
 function embeddedImage(im){const c=document.createElement('canvas');c.width=im.width;c.height=im.height;c.getContext('2d').drawImage(im,0,0);return c.toDataURL('image/png');}
 async function openPainProject(p){
  const s=p.settings,valid=a=>a&&typeof a.src==='string'&&/^data:image\/(png|jpeg|webp);base64,/.test(a.src)&&typeof a.name==='string'&&a.name.length<=200;
- if(![1,2].includes(p.version)||!s||![...$('size').options].some(o=>o.value===s.size)||!Number.isFinite(s.duration)||s.duration<3||s.duration>18||!/^#[0-9a-f]{6}$/i.test(s.background)||typeof p.showText!=='boolean'||!Array.isArray(p.images)||p.images.length<1||p.images.length>12||(p.version===1&&p.images.length!==4)||!p.images.every(valid)||(p.version===2&&p.images.some(a=>a.textSlot!==null&&(!Number.isInteger(a.textSlot)||a.textSlot<0||a.textSlot>3)))||(p.backgroundImage!=null&&!valid(p.backgroundImage)))throw new Error('四大痛点模板参数或素材无效。');
+ if(![1,2].includes(p.version)||!s||!validFrameSettings(s)||!Number.isFinite(s.duration)||s.duration<3||s.duration>18||!/^#[0-9a-f]{6}$/i.test(s.background)||typeof p.showText!=='boolean'||!Array.isArray(p.images)||p.images.length<1||p.images.length>12||(p.version===1&&p.images.length!==4)||!p.images.every(valid)||(p.version===2&&p.images.some(a=>a.textSlot!==null&&(!Number.isInteger(a.textSlot)||a.textSlot<0||a.textSlot>3)))||(p.backgroundImage!=null&&!valid(p.backgroundImage)))throw new Error('四大痛点模板参数或素材无效。');
  const ims=await Promise.all(p.images.map(async (a,i)=>({...a,textSlot:p.version===1?i:a.textSlot,image:await imageFrom(a.src)}))),bg=p.backgroundImage?await imageFrom(p.backgroundImage.src):null;
- switchTemplate('pain');painCards=ims;painKeepText=p.showText;settings={size:s.size,duration:s.duration,background:s.background,scale:100,stack:false};customBackground=p.backgroundImage||null;backgroundImage=bg;time=0;renderPain();syncBackgroundUI();syncSettings();notice('四大痛点模板已打开。');
+ switchTemplate('pain');painCards=ims;painKeepText=p.showText;settings={...frameExtras(s),size:s.size,duration:s.duration,background:s.background,scale:100,stack:false};customBackground=p.backgroundImage||null;backgroundImage=bg;time=0;renderPain();syncBackgroundUI();syncSettings();notice('四大痛点模板已打开。');
 }
 
 
@@ -225,9 +225,9 @@ function drawBuyer(t){
 }
 async function openBuyerProject(p){
  const s=p.settings,valid=a=>a&&typeof a.name==='string'&&a.name.length<=200&&typeof a.src==='string'&&/^data:image\/(png|jpeg|webp);base64,/.test(a.src);
- if(![1,2].includes(p.version)||!s||![...$('size').options].some(o=>o.value===s.size)||!Number.isFinite(s.duration)||s.duration<3||s.duration>18||!/^#[0-9a-f]{6}$/i.test(s.background)||!Array.isArray(p.images)||p.images.length<1||p.images.length>12||(p.version===1&&p.images.length!==4)||!p.images.every(a=>a===null||valid(a))||(p.backgroundImage!=null&&!valid(p.backgroundImage)))throw new Error('买家秀模板参数或图片无效。');
+ if(![1,2].includes(p.version)||!s||!validFrameSettings(s)||!Number.isFinite(s.duration)||s.duration<3||s.duration>18||!/^#[0-9a-f]{6}$/i.test(s.background)||!Array.isArray(p.images)||p.images.length<1||p.images.length>12||(p.version===1&&p.images.length!==4)||!p.images.every(a=>a===null||valid(a))||(p.backgroundImage!=null&&!valid(p.backgroundImage)))throw new Error('买家秀模板参数或图片无效。');
  const ims=await Promise.all(p.images.map(async a=>a?{...a,image:await imageFrom(a.src)}:{src:null,image:null,name:''})),bg=p.backgroundImage?await imageFrom(p.backgroundImage.src):null;
- switchTemplate('buyer');buyerCards=ims;settings={size:s.size,duration:s.duration,background:s.background,scale:100,stack:false};customBackground=p.backgroundImage||null;backgroundImage=bg;time=0;renderBuyer();syncBackgroundUI();syncSettings();notice('买家秀模板已打开。');
+ switchTemplate('buyer');buyerCards=ims;settings={...frameExtras(s),size:s.size,duration:s.duration,background:s.background,scale:100,stack:false};customBackground=p.backgroundImage||null;backgroundImage=bg;time=0;renderBuyer();syncBackgroundUI();syncSettings();notice('买家秀模板已打开。');
 }
 
 
@@ -249,9 +249,9 @@ function drawBody(t){
 }
 async function openBodyProject(p){
  const s=p.settings,valid=a=>a&&typeof a.name==='string'&&a.name.length<=200&&typeof a.src==='string'&&/^data:image\/(png|jpeg|webp);base64,/.test(a.src);
- if(p.version!==1||!s||![...$('size').options].some(o=>o.value===s.size)||!Number.isFinite(s.duration)||s.duration<3||s.duration>18||!/^#[0-9a-f]{6}$/i.test(s.background)||!Array.isArray(p.images)||p.images.length!==2||!p.images.every(valid)||(p.backgroundImage!=null&&!valid(p.backgroundImage)))throw new Error('体型不设限模板参数或图片无效。');
+ if(p.version!==1||!s||!validFrameSettings(s)||!Number.isFinite(s.duration)||s.duration<3||s.duration>18||!/^#[0-9a-f]{6}$/i.test(s.background)||!Array.isArray(p.images)||p.images.length!==2||!p.images.every(valid)||(p.backgroundImage!=null&&!valid(p.backgroundImage)))throw new Error('体型不设限模板参数或图片无效。');
  const ims=await Promise.all(p.images.map(async a=>({...a,image:await imageFrom(a.src)}))),bg=p.backgroundImage?await imageFrom(p.backgroundImage.src):null;
- switchTemplate('body');bodyCards=ims;settings={size:s.size,duration:s.duration,background:s.background,scale:100,stack:false};customBackground=p.backgroundImage||null;backgroundImage=bg;time=0;renderBody();syncBackgroundUI();syncSettings();notice('体型不设限模板已打开。');
+ switchTemplate('body');bodyCards=ims;settings={...frameExtras(s),size:s.size,duration:s.duration,background:s.background,scale:100,stack:false};customBackground=p.backgroundImage||null;backgroundImage=bg;time=0;renderBody();syncBackgroundUI();syncSettings();notice('体型不设限模板已打开。');
 }
 
 const templateStates={};
@@ -284,11 +284,11 @@ function drawLong(t){
 }
 async function openLongProject(p){
   const s=p.settings,asset=p.longImage,bg=p.backgroundImage;
-  if(p.version!==1||!s||![...$('size').options].some(o=>o.value===s.size)||!Number.isFinite(s.duration)||s.duration<3||s.duration>18||!/^#[0-9a-f]{6}$/i.test(s.background))throw new Error('长图模板参数无效。');
+  if(p.version!==1||!s||!validFrameSettings(s)||!Number.isFinite(s.duration)||s.duration<3||s.duration>18||!/^#[0-9a-f]{6}$/i.test(s.background))throw new Error('长图模板参数无效。');
   const valid=a=>a&&typeof a.src==='string'&&/^data:image\/(png|jpeg|webp);base64,/.test(a.src)&&typeof a.name==='string'&&a.name.length<=200;
   if(!valid(asset)||(bg!=null&&!valid(bg)))throw new Error('长图模板素材无效。');
   const [im,bim]=await Promise.all([imageFrom(asset.src),bg?imageFrom(bg.src):Promise.resolve(null)]);
-  switchTemplate('plain');longImage=im;longSource=asset.src;longName=asset.name;settings={size:s.size,duration:s.duration,background:s.background,scale:100,stack:false};customBackground=bg||null;backgroundImage=bim;time=0;syncLongUI();syncBackgroundUI();syncSettings();notice('长图模板已打开。');
+  switchTemplate('plain');longImage=im;longSource=asset.src;longName=asset.name;settings={...frameExtras(s),size:s.size,duration:s.duration,background:s.background,scale:100,stack:false};customBackground=bg||null;backgroundImage=bim;time=0;syncLongUI();syncBackgroundUI();syncSettings();notice('长图模板已打开。');
 }
 function sampleLayer(layer,t){
   const f=Math.max(0,Math.min(600,t*motion.sampleRate)),i=Math.floor(f),j=Math.min(600,i+1),p=f-i;
@@ -336,6 +336,8 @@ function paintComp(id,t){
 function draw(t){
   const w=canvas.width,h=canvas.height;ctx.clearRect(0,0,w,h);ctx.fillStyle=settings.background;ctx.fillRect(0,0,w,h);
   if(backgroundImage){const z=Math.max(w/backgroundImage.width,h/backgroundImage.height);ctx.drawImage(backgroundImage,(w-backgroundImage.width*z)/2,(h-backgroundImage.height*z)/2,backgroundImage.width*z,backgroundImage.height*z);}
+  ctx.save();const contentZoom=(settings.contentScale??100)/100;ctx.translate(w/2,h/2);ctx.scale(contentZoom,contentZoom);ctx.translate(-w/2,-h/2);
+  try{
   if(activeTemplate==='plain'){drawLong(t);return;}
   if(activeTemplate==='pain'){drawPain(t);return;}
   if(activeTemplate==='buyer'){drawBuyer(t);return;}
@@ -347,16 +349,47 @@ function draw(t){
   const aeTime=Math.min(5.9999,Math.max(0,t/settings.duration*motion.duration));
   ctx.save();ctx.translate(w/2,h/2);ctx.scale(fit,fit);ctx.translate(-motion.width/2,-motion.height/2);
   paintComp(57,aeTime);ctx.restore();
+  }finally{ctx.restore();}
 }
 function syncTime(){ $('timeline').value=time;$('timecode').textContent=time.toFixed(2).padStart(5,'0'); }
 function setPlaying(value){if(!value)pauseSmart();playing=value;last=0;$('play').textContent=value?'Ⅱ':'▶';$('play').setAttribute('aria-label',value?'暂停动画':'播放动画');}
 function loop(timestamp){if(playing&&!exporting){if(last)time=(time+(timestamp-last)/1000)%settings.duration;last=timestamp;draw(time);syncTime();}requestAnimationFrame(loop);}
+function validFrameSettings(s){
+  if(!s||typeof s.size!=='string'||!/^\d+,\d+$/.test(s.size))return false;
+  const dims=s.size.split(',').map(Number);
+  return dims.every(n=>Number.isInteger(n)&&n>=128&&n<=4096)&&(s.contentScale===undefined||(Number.isFinite(s.contentScale)&&s.contentScale>=25&&s.contentScale<=300));
+}
+function frameExtras(s){return {contentScale:s.contentScale??100,customSize:s.customSize===true};}
+function syncFrameUI(){
+  const preset=[...$('size').options].some(o=>o.value===settings.size);
+  settings.contentScale??=100;
+  $('size').value=settings.customSize||!preset?'custom':settings.size;
+  $('customFrame').hidden=$('size').value!=='custom';
+  [$('frameWidth').value,$('frameHeight').value]=settings.size.split(',');
+  $('contentScale').value=settings.contentScale;
+  $('contentScaleValue').textContent=settings.contentScale+'%';
+}
+$('size').addEventListener('change',()=>{
+  if($('size').value==='custom'){$('customFrame').hidden=false;return;}
+  settings.size=$('size').value;settings.customSize=false;syncSettings();
+});
+$('applyFrame').onclick=()=>{
+  const w=Number($('frameWidth').value),h=Number($('frameHeight').value);
+  if(!validFrameSettings({size:w+','+h})||w%2||h%2){$('frameHint').textContent='请输入 128–4096 之间的偶数宽高。';return;}
+  settings.size=w+','+h;settings.customSize=true;
+  const gcd=(a,b)=>b?gcd(b,a%b):a,d=gcd(w,h);
+  $('frameHint').textContent=`已应用 ${w/d}:${h/d} · ${w} × ${h} px`;syncSettings();
+};
+$('contentScale').addEventListener('input',()=>{settings.contentScale=Number($('contentScale').value);syncSettings();});
+$('resetContentScale').onclick=()=>{settings.contentScale=100;syncSettings();};
+
 function syncSettings(){
   invalidateVideo();
   $('formatLabel').textContent=supportedMime?`${extension.toUpperCase()} · ${activeTemplate==='body'?30:activeTemplate==='plain'?24:25} FPS`:'暂不支持';
-  ['size','duration','scale','background'].forEach(k=>$(k).value=settings[k]);$('stack').checked=settings.stack;
+  syncFrameUI();
+  ['duration','scale','background'].forEach(k=>$(k).value=settings[k]);$('stack').checked=settings.stack;
   [canvas.width,canvas.height]=settings.size.split(',').map(Number);
-  $('canvasLabel').textContent=$('size').selectedOptions[0].textContent;$('durationValue').textContent=`${settings.duration} 秒`;$('durationLabel').textContent=settings.duration.toFixed(2).padStart(5,'0');$('timeline').max=settings.duration;$('scaleValue').textContent=`${settings.scale}%`;$('colorValue').textContent=settings.background.toUpperCase();time=Math.min(time,settings.duration);draw(time);syncTime();updatePreviewZoom();
+  $('canvasLabel').textContent=($('size').value==='custom'?'自定义 · '+settings.size.replace(',', ' × '):$('size').selectedOptions[0].textContent);$('durationValue').textContent=`${settings.duration} 秒`;$('durationLabel').textContent=settings.duration.toFixed(2).padStart(5,'0');$('timeline').max=settings.duration;$('scaleValue').textContent=`${settings.scale}%`;$('colorValue').textContent=settings.background.toUpperCase();time=Math.min(time,settings.duration);draw(time);syncTime();updatePreviewZoom();
 }
 function downloadBlob(blob,filename){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);}
 async function saveProject(){try{
@@ -377,7 +410,7 @@ function validateProject(p){
   if(p.trail!=null&&(typeof p.trail.src!=='string'||!/^data:image\/png;base64,/.test(p.trail.src)||typeof p.trail.name!=='string'||p.trail.name.length>200))throw new Error('模板拖尾素材无效。');
   if(p.backgroundImage!=null&&(typeof p.backgroundImage.src!=='string'||!/^data:image\/(png|jpeg|webp);base64,/.test(p.backgroundImage.src)||typeof p.backgroundImage.name!=='string'||p.backgroundImage.name.length>200))throw new Error('模板背景图片无效。');
   const s=p.settings,allowed=[...$('size').options].map(o=>o.value);
-  if(!s||!allowed.includes(s.size)||!Number.isFinite(s.duration)||s.duration<3||s.duration>18||!Number.isFinite(s.scale)||s.scale<65||s.scale>115||!/^#[0-9a-f]{6}$/i.test(s.background)||typeof s.stack!=='boolean')throw new Error('模板中的画面参数无效。');
+  if(!s||!validFrameSettings(s)||!Number.isFinite(s.duration)||s.duration<3||s.duration>18||!Number.isFinite(s.scale)||s.scale<65||s.scale>115||!/^#[0-9a-f]{6}$/i.test(s.background)||typeof s.stack!=='boolean')throw new Error('模板中的画面参数无效。');
   for(const c of p.cards)if(typeof c.title!=='string'||c.title.length>24||typeof c.src!=='string'||!/^data:image\/(png|jpeg|webp);base64,/.test(c.src))throw new Error('模板图片或标题无效。');
 }
 function showExportDialog(title,detail){
@@ -415,7 +448,7 @@ async function exportVideo(){
   finally{cancelAnimationFrame(raf);clearTimeout(timer);if(recorder&&recorder.state!=='inactive')recorder.stop();if(stream)stream.getTracks().forEach(t=>t.stop());exporting=false;cancelRecording=null;document.body.classList.remove('exporting');$('exportState').hidden=true;$('closeExport').hidden=false;disableIds.forEach(id=>$(id).disabled=false);editorControls.forEach(x=>x.el.disabled=x.disabled);time=0;draw(0);syncTime();}
 }
 $('play').onclick=()=>setPlaying(!playing);$('replay').onclick=()=>{time=0;draw(0);syncTime();setPlaying(true);};$('timeline').oninput=()=>{setPlaying(false);time=Number($('timeline').value);draw(time);syncTime();};
-['size','duration','scale','background','stack'].forEach(k=>$(k).addEventListener('input',()=>{if(k==='background'&&activeTemplate==='smart'){settings.originalBackground=false;syncBackgroundUI();}settings[k]=k==='stack'?$(k).checked:['duration','scale'].includes(k)?Number($(k).value):$(k).value;syncSettings();}));
+['duration','scale','background','stack'].forEach(k=>$(k).addEventListener('input',()=>{if(k==='background'&&activeTemplate==='smart'){settings.originalBackground=false;syncBackgroundUI();}settings[k]=k==='stack'?$(k).checked:['duration','scale'].includes(k)?Number($(k).value):$(k).value;syncSettings();}));
 $('resetSettings').onclick=()=>{settings=activeTemplate==='smart'?{size:'1668,1455',duration:10.44,scale:100,background:'#ffe3c9',stack:false,originalBackground:true}:activeTemplate==='body'?{size:'980,1400',duration:4,scale:100,background:'#ffffff',stack:false}:activeTemplate==='buyer'?{size:'1080,1080',duration:6,scale:100,background:'#ffffff',stack:false}:activeTemplate==='pain'?{size:'1500,1342',duration:8,scale:100,background:'#ffffff',stack:false}:activeTemplate==='plain'?{size:'1500,1214',duration:8,scale:100,background:'#ffffff',stack:false}:{size:'1176,1144',duration:6,scale:100,background:'#f2f2f2',stack:true};syncSettings();};
 $('imageInput').onchange=async e=>{const file=e.target.files[0],index=selected;e.target.value='';if(!file)return;try{const result=await importImage(file);Object.assign(cards[index],result);invalidateVideo();renderCards();draw(time);notice(`第 ${index+1} 张卡片已替换。`);}catch(e){notice(e.message);}};
 $('batchUpload').onclick=()=>$('batchInput').click();$('batchInput').onchange=async e=>{const files=[...e.target.files];e.target.value='';if(!files.length)return;if(files.length>6){notice('一次最多选择 6 张图片，请重新选择。');return;}try{const imported=await Promise.all(files.map(file=>importImage(file)));imported.forEach((c,i)=>Object.assign(cards[i],c));invalidateVideo();renderCards();draw(time);notice(`已按所选文件顺序替换前 ${files.length} 张卡片，可用前移、后移调整。`);}catch(e){notice(e.message);}};

@@ -22,3 +22,5 @@
 .body-card img{aspect-ratio:2450/3925;object-fit:cover}
 
 .export-dialog{width:min(480px,calc(100vw - 32px));padding:28px;border:1px solid var(--line);border-radius:18px;color:#242b38;background:#fff;box-shadow:0 24px 90px #16213c40}.export-dialog::backdrop{background:#15213f66}.export-dialog h2{font-size:22px;margin:0 0 12px}.export-dialog>p{font-size:15px;line-height:1.7;color:#687385;margin:0}.export-dialog .download{display:block;text-align:center;background:var(--accent);color:white;font-weight:600;padding:14px;margin:22px 0 12px}.export-close{display:block;width:100%;margin-top:16px}.export-dialog .export-state p{font-size:14px}
+
+.frame-dimensions{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center}.frame-dimensions input{width:100%;min-width:0;padding:10px;border:1px solid var(--border,#3b4048);border-radius:8px;background:transparent;color:inherit}#customFrame{margin:12px 0 20px}#resetContentScale{margin-bottom:4px}
