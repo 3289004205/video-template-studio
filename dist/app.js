@@ -153,6 +153,28 @@ function paintVariablePainIcon(at,progress,count){
   if(i===current&&blend<.00001){ctx.save();ctx.beginPath();ctx.roundRect(x,1242,width,diameter,diameter/2);ctx.clip();ctx.fillStyle='#000';ctx.beginPath();ctx.roundRect(x,1242,width*dwell,diameter,diameter/2);ctx.fill();ctx.restore();}x+=width+gap;
  });ctx.restore();
 }
+const painGlassCanvas=document.createElement('canvas'),painGlassContext=painGlassCanvas.getContext('2d');
+function paintPainGlass(count){
+ // AE's MB Liquid Glass layer: center (750,1247), size 307x97,
+ // fully rounded corners and 10px post blur. Sample the current frame,
+ // before drawing indicators, so replacements and video exports share the effect.
+ const width=307+(count-4)*33,height=97,x=(count===4?750:745.25)-width/2,y=1198.5;
+ const matrix=ctx.getTransform(),scale=matrix.a,pad=32;
+ const sx=matrix.e+(x-pad)*scale,sy=matrix.f+(y-pad)*scale;
+ const sw=(width+pad*2)*scale,sh=(height+pad*2)*scale;
+ const w=Math.ceil(sw),h=Math.ceil(sh);
+ if(painGlassCanvas.width!==w||painGlassCanvas.height!==h){painGlassCanvas.width=w;painGlassCanvas.height=h;}
+ painGlassContext.clearRect(0,0,w,h);
+ painGlassContext.drawImage(canvas,sx,sy,sw,sh,0,0,w,h);
+ ctx.save();ctx.beginPath();ctx.roundRect(x,y,width,height,height/2);ctx.clip();
+ ctx.filter=`blur(${10*scale}px)`;
+ ctx.drawImage(painGlassCanvas,x-pad,y-pad,width+pad*2,height+pad*2);
+ ctx.filter='none';
+ const tint=ctx.createLinearGradient(x,y,x,y+height);tint.addColorStop(0,'rgba(255,255,255,.16)');tint.addColorStop(.5,'rgba(255,255,255,.08)');tint.addColorStop(1,'rgba(255,255,255,.20)');
+ ctx.fillStyle=tint;ctx.fillRect(x,y,width,height);ctx.restore();
+ ctx.save();const edge=ctx.createLinearGradient(x,y,x+width,y+height);edge.addColorStop(0,'rgba(255,255,255,.95)');edge.addColorStop(.5,'rgba(255,255,255,.38)');edge.addColorStop(1,'rgba(255,255,255,.9)');
+ ctx.strokeStyle=edge;ctx.lineWidth=2.5;ctx.beginPath();ctx.roundRect(x+1.25,y+1.25,width-2.5,height-2.5,(height-2.5)/2);ctx.stroke();ctx.restore();
+}
 function drawPain(t){
  const m=window.PAIN_MOTION;if(!painIcons||painCards.some(c=>!c.image))return;
  const at=Math.min(7.9999,Math.max(0,t/settings.duration*8)),fit=Math.min(canvas.width/1500,canvas.height/1342),count=painCards.length,progress=count===1?0:painProgress(at,count);
@@ -162,6 +184,7 @@ function drawPain(t){
   const card=painCards[i%count],im=card.image,z=Math.max(1500/im.width,1342/im.height);
   ctx.save();ctx.translate((i-progress)*1500,0);ctx.beginPath();ctx.rect(0,0,1500,1342);ctx.clip();ctx.drawImage(im,(1500-im.width*z)/2,(1342-im.height*z)/2,im.width*z,im.height*z);if(painKeepText&&card.textSlot!=null)ctx.drawImage(painTexts[card.textSlot],0,0);ctx.restore();
  }
+ paintPainGlass(count);
  if(count===4){ctx.save();ctx.globalAlpha*=painTransform(m.layers[0],at);paintPainIcon(at);ctx.restore();}else paintVariablePainIcon(at,progress,count);
  ctx.restore();
 }
