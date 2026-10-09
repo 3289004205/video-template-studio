@@ -15,9 +15,7 @@
       <div class="preview-shell"><div class="preview-viewport" id="previewViewport" tabindex="0" aria-label="预览画面，放大后可拖动或用方向键移动"><div id="previewStage" class="preview-stage"><canvas id="preview" width="1176" height="1144" aria-label="六张课程卡片循环轮播预览"></canvas></div></div><div class="canvas-label" id="canvasLabel">原片比例 · 1176 × 1144</div></div>
       <div class="playback"><button class="play" id="play" aria-label="播放动画">▶</button><span id="timecode">00.00</span><input id="timeline" type="range" min="0" max="6" step="0.01" value="0" aria-label="预览时间"><span id="durationLabel">06.00</span><button id="replay" title="从头播放" aria-label="从头播放">↻</button></div>
       <div class="below-preview"><span><i class="status-dot"></i>替换后立即预览</span><span>图片仅在当前浏览器中处理</span></div>
-      <div class="export-state" id="exportState" hidden><div><strong id="exportMessage">正在导出</strong><button id="cancelExport">取消导出</button></div><progress id="exportProgress" max="100" value="0"></progress><p>导出时请保持此页面在前台，直到完成。</p></div>
       <div id="notice" role="status" aria-live="polite"></div>
-      <a id="download" class="download" hidden>下载视频</a>
     </section>
     <aside class="editor">
       <section class="material-section" id="cardMaterials"><div class="panel-heading"><div><span class="step">01</span><h2>替换卡片</h2></div><button id="batchUpload" class="text-button">批量替换</button></div><p class="hint">点击图片换素材，拖动编号调整顺序。建议使用 3:4 竖图。</p><div id="cards" class="cards"></div><p class="footnote">下方课程文案包含在图片内；输入框只修改卡片上方的分类标题。</p></section>
@@ -34,6 +32,13 @@
       <section class="export-panel"><div class="panel-heading"><div><span class="step">03</span><h2>导出成片</h2></div><span class="format" id="formatLabel">检测格式中</span></div><button class="primary export-button" id="export">导出一轮视频</button><p class="footnote" id="formatHint">导出不包含声音，保留一轮完整动画。</p></section>
     </aside>
   </main>
+  <dialog id="exportDialog" class="export-dialog" aria-labelledby="exportTitle" aria-describedby="exportDetail">
+    <h2 id="exportTitle">导出视频</h2>
+    <p id="exportDetail" role="status" aria-live="polite"></p>
+    <div class="export-state" id="exportState" hidden><div><strong id="exportMessage">正在准备…</strong><button id="cancelExport">取消导出</button></div><progress id="exportProgress" max="100" value="0"></progress><p>请保持此页面在前台，直到完成。</p></div>
+    <a id="download" class="download" hidden>下载视频</a>
+    <button id="closeExport" class="export-close">关闭</button>
+  </dialog>
   <footer><span>基于 AE 原工程制作</span><span>替换素材 · 预览动画 · 导出复用</span></footer>
   <input type="file" id="smartInput" accept="image/png,image/jpeg,image/webp,video/mp4,video/webm" hidden><input type="file" id="smartOverlayInput" accept="image/png,.png" hidden><input type="file" id="bodyInput" accept="image/png,image/jpeg,image/webp" hidden><input type="file" id="buyerAddInput" accept="image/png,image/jpeg,image/webp" multiple hidden><input type="file" id="buyerInput" accept="image/png,image/jpeg,image/webp" hidden><input type="file" id="buyerBatchInput" accept="image/png,image/jpeg,image/webp" multiple hidden><input type="file" id="painAddInput" accept="image/png,image/jpeg,image/webp" multiple hidden><input type="file" id="painInput" accept="image/png,image/jpeg,image/webp" hidden><input type="file" id="longInput" accept="image/png,image/jpeg,image/webp" hidden><input type="file" id="backgroundInput" accept="image/png,image/jpeg,image/webp" hidden><input type="file" id="stackInput" accept="image/png,.png" hidden><input type="file" id="imageInput" accept="image/png,image/jpeg,image/webp" hidden><input type="file" id="batchInput" accept="image/png,image/jpeg,image/webp" multiple hidden><input type="file" id="projectInput" accept="application/json,.json" hidden>
 </body>

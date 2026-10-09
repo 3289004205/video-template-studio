@@ -357,17 +357,23 @@ function validateProject(p){
   if(!s||!allowed.includes(s.size)||!Number.isFinite(s.duration)||s.duration<3||s.duration>18||!Number.isFinite(s.scale)||s.scale<65||s.scale>115||!/^#[0-9a-f]{6}$/i.test(s.background)||typeof s.stack!=='boolean')throw new Error('模板中的画面参数无效。');
   for(const c of p.cards)if(typeof c.title!=='string'||c.title.length>24||typeof c.src!=='string'||!/^data:image\/(png|jpeg|webp);base64,/.test(c.src))throw new Error('模板图片或标题无效。');
 }
+function showExportDialog(title,detail){
+  $('exportTitle').textContent=title;$('exportDetail').textContent=detail;
+  if(!$('exportDialog').open)$('exportDialog').showModal();
+}
+function exportProblem(message){$('download').hidden=true;showExportDialog('暂时无法导出',message);notice(message);}
 async function exportVideo(){
   if(exporting)return;
-  if(activeTemplate==='buyer'&&buyerCards.some(c=>!c.image)){notice('请先补齐当前所有画面的图片，再导出视频。');return;}
-  if(!supportedMime||!canvas.captureStream){notice('当前浏览器不支持视频导出，请使用最新版 Chrome 或 Edge 打开此页面。');return;}
-  if(activeTemplate==='smart'?!smartReady:activeTemplate==='body'?(bodyCards.some(c=>!c.image)||bodyUi.length!==4):activeTemplate==='plain'?!longImage:activeTemplate==='pain'?(!painIcons||painCards.some(c=>!c.image)):cards.some(c=>!c.image)){notice('请等待图片加载完成后导出。');return;}
-  exporting=true;setPlaying(false);document.body.classList.add('exporting');$('exportState').hidden=false;$('exportProgress').value=0;$('download').hidden=true;notice('');
+  if(activeTemplate==='buyer'&&buyerCards.some(c=>!c.image)){exportProblem('请先补齐当前所有画面的图片，再导出视频。');return;}
+  if(!supportedMime||!canvas.captureStream){exportProblem('当前浏览器不支持视频导出，请使用最新版 Chrome 或 Edge 打开此页面。');return;}
+  if(activeTemplate==='smart'?!smartReady:activeTemplate==='body'?(bodyCards.some(c=>!c.image)||bodyUi.length!==4):activeTemplate==='plain'?!longImage:activeTemplate==='pain'?(!painIcons||painCards.some(c=>!c.image)):cards.some(c=>!c.image)){exportProblem('素材仍在加载，请稍后重新导出。');return;}
+  exporting=true;setPlaying(false);document.body.classList.add('exporting');$('exportState').hidden=false;$('exportProgress').value=0;$('download').hidden=true;notice('');$('exportMessage').textContent='正在准备…';$('closeExport').hidden=true;showExportDialog('正在导出视频','正在准备画面，完成后会自动开始下载。');
   const editorControls=[...document.querySelectorAll('.editor button,.editor input,.editor select')].map(el=>({el,disabled:el.disabled}));editorControls.forEach(x=>x.el.disabled=true);
   const disableIds=['play','replay','timeline','saveProject','loadProject','exportTop','templateMode'];disableIds.forEach(id=>$(id).disabled=true);
   let stream,recorder,raf,timer,cancelled=false;
+  cancelRecording=()=>{cancelled=true;if(recorder&&recorder.state!=='inactive')recorder.stop();};
   try{
-    if(activeTemplate==='smart')await prepareSmartExport();time=0;draw(0);syncTime();stream=canvas.captureStream(activeTemplate==='body'?30:activeTemplate==='plain'?24:25);
+    if(activeTemplate==='smart')await prepareSmartExport();if(cancelled){showExportDialog('导出已取消','可以关闭此窗口后重新导出。');return;}time=0;draw(0);syncTime();stream=canvas.captureStream(activeTemplate==='body'?30:activeTemplate==='plain'?24:25);
     recorder=new MediaRecorder(stream,{mimeType:supportedMime,videoBitsPerSecond:12000000});
     const chunks=[];
     await new Promise((resolve,reject)=>{
@@ -377,13 +383,13 @@ async function exportVideo(){
       const frame=now=>{if(recorder.state==='inactive')return;const elapsed=(now-start)/1000;time=Math.min(elapsed,settings.duration);draw(Math.min(time,settings.duration-.001));syncTime();const pc=Math.min(100,Math.round(elapsed/settings.duration*100));$('exportProgress').value=pc;$('exportMessage').textContent=`正在导出 · ${pc}%`;if(elapsed>=settings.duration){recorder.stop();return;}raf=requestAnimationFrame(frame);};
       raf=requestAnimationFrame(frame);timer=setTimeout(()=>{cancelled=true;if(recorder.state!=='inactive')recorder.stop();},(settings.duration+15)*1000);
     });
-    if(cancelled){notice('导出已取消。保持页面在前台后可重新导出。');return;}
+    if(cancelled){showExportDialog('导出已取消','请保持页面在前台，再重新导出。');notice('导出已取消。');return;}
     if(!chunks.length)throw new Error('未生成视频数据，请重试。');
     const blob=new Blob(chunks,{type:recorder.mimeType||supportedMime});if(videoURL)URL.revokeObjectURL(videoURL);videoURL=URL.createObjectURL(blob);
     $('download').href=videoURL;$('download').download=`${activeTemplate==='smart'?'智能互联动态人物':activeTemplate==='body'?'体型不设限':activeTemplate==='buyer'?'买家秀':activeTemplate==='pain'?'四大痛点轮播':activeTemplate==='plain'?'长图横向滚动':'课程轮播'}-${canvas.width}x${canvas.height}.${extension}`;$('download').textContent=`下载 ${extension.toUpperCase()} 视频 · ${(blob.size/1024/1024).toFixed(1)} MB`;$('download').hidden=false;
-    notice('视频已生成，点击下方链接保存到电脑。');
-  }catch(e){notice('导出未完成：'+e.message+' 请降低尺寸后重试。');}
-  finally{cancelAnimationFrame(raf);clearTimeout(timer);if(recorder&&recorder.state!=='inactive')recorder.stop();if(stream)stream.getTracks().forEach(t=>t.stop());exporting=false;cancelRecording=null;document.body.classList.remove('exporting');$('exportState').hidden=true;disableIds.forEach(id=>$(id).disabled=false);editorControls.forEach(x=>x.el.disabled=x.disabled);time=0;draw(0);syncTime();}
+    showExportDialog('视频已生成','已发起自动下载。如未开始，请点击下方按钮；文件可在浏览器下载记录中查看。');$('download').click();$('download').textContent=$('download').textContent.replace('下载 ','再次下载 ');notice('视频已生成，已发起下载。');
+  }catch(e){exportProblem('导出未完成：'+e.message+' 请降低尺寸后重试。');}
+  finally{cancelAnimationFrame(raf);clearTimeout(timer);if(recorder&&recorder.state!=='inactive')recorder.stop();if(stream)stream.getTracks().forEach(t=>t.stop());exporting=false;cancelRecording=null;document.body.classList.remove('exporting');$('exportState').hidden=true;$('closeExport').hidden=false;disableIds.forEach(id=>$(id).disabled=false);editorControls.forEach(x=>x.el.disabled=x.disabled);time=0;draw(0);syncTime();}
 }
 $('play').onclick=()=>setPlaying(!playing);$('replay').onclick=()=>{time=0;draw(0);syncTime();setPlaying(true);};$('timeline').oninput=()=>{setPlaying(false);time=Number($('timeline').value);draw(time);syncTime();};
 ['size','duration','scale','background','stack'].forEach(k=>$(k).addEventListener('input',()=>{if(k==='background'&&activeTemplate==='smart'){settings.originalBackground=false;syncBackgroundUI();}settings[k]=k==='stack'?$(k).checked:['duration','scale'].includes(k)?Number($(k).value):$(k).value;syncSettings();}));
@@ -391,6 +397,7 @@ $('resetSettings').onclick=()=>{settings=activeTemplate==='smart'?{size:'1668,14
 $('imageInput').onchange=async e=>{const file=e.target.files[0],index=selected;e.target.value='';if(!file)return;try{const result=await importImage(file);Object.assign(cards[index],result);invalidateVideo();renderCards();draw(time);notice(`第 ${index+1} 张卡片已替换。`);}catch(e){notice(e.message);}};
 $('batchUpload').onclick=()=>$('batchInput').click();$('batchInput').onchange=async e=>{const files=[...e.target.files];e.target.value='';if(!files.length)return;if(files.length>6){notice('一次最多选择 6 张图片，请重新选择。');return;}try{const imported=await Promise.all(files.map(file=>importImage(file)));imported.forEach((c,i)=>Object.assign(cards[i],c));invalidateVideo();renderCards();draw(time);notice(`已按所选文件顺序替换前 ${files.length} 张卡片，可用前移、后移调整。`);}catch(e){notice(e.message);}};
 $('saveProject').onclick=saveProject;$('loadProject').onclick=()=>$('projectInput').click();$('projectInput').onchange=async e=>{const file=e.target.files[0];e.target.value='';if(!file)return;try{if(file.size>300*1024*1024)throw new Error('模板文件过大，请选择 300 MB 以内的文件。');const p=JSON.parse(await file.text());if(p.type==='smart-carousel'){await openSmartProject(p);return;}if(p.type==='body-compare'){await openBodyProject(p);return;}if(p.type==='buyer-carousel'){await openBuyerProject(p);return;}if(p.type==='pain-carousel'){await openPainProject(p);return;}if(p.type==='long-scroll'){await openLongProject(p);return;}validateProject(p);const ready=await Promise.all(p.cards.map(async c=>({...c,image:await imageFrom(c.src)})));const trailImage=p.trail?await imageFrom(p.trail.src):defaultStackImage;const loadedBackground=p.backgroundImage?await imageFrom(p.backgroundImage.src):null;switchTemplate('cards');cards=ready;settings=p.settings;customBackground=p.backgroundImage||null;backgroundImage=loadedBackground;syncBackgroundUI();customStack=p.trail||null;stackImage=trailImage;syncStackUI();time=0;renderCards();syncSettings();notice('模板已打开，可以继续替换素材。');}catch(e){notice('打开失败：'+e.message);}};
+$('closeExport').onclick=()=>$('exportDialog').close();$('exportDialog').addEventListener('cancel',e=>{if(exporting){e.preventDefault();cancelRecording?.();}});
 $('export').onclick=exportVideo;$('exportTop').onclick=exportVideo;$('cancelExport').onclick=()=>cancelRecording?.();document.addEventListener('visibilitychange',()=>{if(document.hidden&&exporting)cancelRecording?.();});
 $('formatLabel').textContent=supportedMime?`${extension.toUpperCase()} · 25 FPS`:'暂不支持';$('formatHint').textContent=supportedMime?`导出 ${extension.toUpperCase()} 无声视频，包含完整一轮。${extension==='webm'?'此浏览器不支持 MP4 录制，将使用 WebM。':''}`:'请用最新版 Chrome 或 Edge 导出视频。';
 Promise.all([Promise.all(bodyCards.map(async c=>{c.image=await imageFrom(c.src);})).then(()=>{bodyDefaults=bodyCards.map(c=>({...c}));renderBody();}),Promise.all([0,1,2,3].map(i=>imageFrom(`assets/body-ui-${i}.png`))).then(ims=>bodyUi=ims),Promise.all(buyerCards.map(async c=>{c.image=await imageFrom(c.src);})),Promise.all(painCards.map(async c=>{c.image=await imageFrom(c.src);})).then(()=>{painDefaults=painCards.map(c=>({...c}));renderPain();}),Promise.all(painNames.map((_,i)=>imageFrom(`assets/pain-text-${i}.png`))).then(ims=>painTexts=ims),imageFrom('assets/pain-icons.png').then(im=>painIcons=im),imageFrom('assets/plain-long.png').then(im=>{longImage=defaultLongImage=im;syncLongUI();}),Promise.all(cards.map(async c=>{c.image=await imageFrom(c.src);})),Promise.all(names.map((_,i)=>imageFrom(`assets/label-${i}.png`))).then(images=>labelImages=images),imageFrom('assets/stack.png').then(img=>{stackImage=defaultStackImage=img;syncStackUI();})]).then(()=>{renderBuyer();renderCards();syncSettings();if(!matchMedia('(prefers-reduced-motion: reduce)').matches)setPlaying(true);requestAnimationFrame(loop);}).catch(e=>notice('素材加载失败：'+e.message));
