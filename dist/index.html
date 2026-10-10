@@ -5,7 +5,7 @@
   <title>视频模板 · 替换素材，生成动画</title>
   <meta name="description" content="选择课程卡片轮播或长图横向滚动模板，替换素材并导出视频。">
   <link rel="icon" href="favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="style.css">
-  <script src="ae-motion.js" defer></script><script src="plain-motion.js" defer></script><script src="pain-motion.js" defer></script><script src="buyer-motion.js" defer></script><script src="body-motion.js" defer></script><script src="smart-motion.js" defer></script><script src="smart.js?v=5" defer></script><script src="app.js?v=5" defer></script>
+  <script src="ae-motion.js" defer></script><script src="plain-motion.js" defer></script><script src="pain-motion.js" defer></script><script src="buyer-motion.js" defer></script><script src="body-motion.js" defer></script><script src="smart-motion.js" defer></script><script src="smart.js?v=6" defer></script><script src="app.js?v=6" defer></script>
 </head>
 <body>
   <header class="topbar"><a class="brand" href="./"><span class="brand-icon"><img src="assets/brand-logo.png" alt="品牌 Logo"></span><span>视频模板<small>COURSE MOTION STUDIO</small></span></a><label class="template-picker">模板<select id="templateMode"><option value="cards">课程卡片轮播1</option><option value="plain">长图横向滚动</option><option value="pain">痛点轮播</option><option value="buyer">买家秀轮播</option><option value="body">左右移轴对比</option><option value="smart">课程卡片轮播2</option></select></label><div class="top-actions"><button id="loadProject">打开模板</button><button id="saveProject">保存模板</button><button class="primary" id="exportTop">导出视频</button></div></header>
@@ -15,7 +15,7 @@
       <div class="preview-shell"><div class="preview-viewport" id="previewViewport" tabindex="0" aria-label="预览画面，放大后可拖动或用方向键移动"><div id="previewStage" class="preview-stage"><canvas id="preview" width="1176" height="1144" aria-label="六张课程卡片循环轮播预览"></canvas></div></div><div class="canvas-label" id="canvasLabel">原片比例 · 1176 × 1144</div></div>
       <div class="playback"><button class="play" id="play" aria-label="播放动画">▶</button><span id="timecode">00.00</span><input id="timeline" type="range" min="0" max="6" step="0.01" value="0" aria-label="预览时间"><span id="durationLabel">06.00</span><button id="replay" title="从头播放" aria-label="从头播放">↻</button></div>
       <div class="below-preview"><span><i class="status-dot"></i>替换后立即预览</span><span>素材仅在当前浏览器中处理</span></div>
-      <div id="notice" role="status" aria-live="polite"></div>
+      <div id="notice" role="status" aria-live="polite"></div><button id="retryAssets" hidden>重试加载素材</button>
     </section>
     <aside class="editor">
       <section class="material-section" id="cardMaterials"><div class="panel-heading"><div><span class="step">01</span><h2>替换卡片</h2></div><button id="batchUpload" class="text-button">批量替换</button></div><p class="hint">点击卡片替换图片或视频，拖动编号调整顺序。建议使用 3:4 竖幅素材。</p><div id="cards" class="cards"></div><p class="footnote">下方课程文案包含在图片内；输入框只修改卡片上方的分类标题。</p></section>

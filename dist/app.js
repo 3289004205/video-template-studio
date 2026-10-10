@@ -37,7 +37,10 @@ $('previewViewport').addEventListener('pointermove',e=>{if(!pan)return;const vie
 for(const event of ['pointerup','pointercancel','lostpointercapture'])$('previewViewport').addEventListener(event,e=>{pan=null;e.currentTarget.classList.remove('dragging');});
 function notice(text){ $('notice').textContent=text; }
 function invalidateVideo(){if(videoURL){URL.revokeObjectURL(videoURL);videoURL=null;$('download').hidden=true;notice('画面已修改，请重新导出视频。');}}
-function imageFrom(src){return new Promise((resolve,reject)=>{const i=new Image();i.onload=()=>resolve(i);i.onerror=()=>reject(new Error('图片无法读取，请换一张 PNG、JPG 或 WebP 图片。'));i.src=src;});}
+const optimizedAssets={"assets/body-0.png": "assets/body-0.webp", "assets/body-1.png": "assets/body-1.webp", "assets/buyer-0.png": "assets/buyer-0.webp", "assets/buyer-1.png": "assets/buyer-1.webp", "assets/buyer-2.png": "assets/buyer-2.webp", "assets/buyer-3.png": "assets/buyer-3.webp", "assets/pain-0.png": "assets/pain-0.webp", "assets/pain-1.png": "assets/pain-1.webp", "assets/pain-2.png": "assets/pain-2.webp", "assets/pain-3.png": "assets/pain-3.webp", "assets/plain-long.png": "assets/plain-long.webp"};
+const imageLoads=new Map();
+function assetURL(src){return optimizedAssets[src]||src;}
+function imageFrom(src){src=assetURL(src);const cacheable=src.startsWith('assets/');if(cacheable&&imageLoads.has(src))return imageLoads.get(src);const promise=new Promise((resolve,reject)=>{const i=new Image();i.onload=()=>resolve(i);i.onerror=()=>reject(new Error('图片无法读取，请换一张 PNG、JPG 或 WebP 图片。'));i.src=src;});if(cacheable){imageLoads.set(src,promise);promise.catch(()=>imageLoads.delete(src));}return promise;}
 function readFile(file){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=()=>reject(new Error('文件读取失败，请重新选择。'));r.readAsDataURL(file);});}
 async function importImage(file,maxEdge=1600){
   if(!file || !['image/png','image/jpeg','image/webp'].includes(file.type)) throw new Error('请选择 PNG、JPG 或 WebP 图片。');
@@ -52,7 +55,7 @@ async function importImage(file,maxEdge=1600){
 let templateVideos=[];
 function isVideoMedia(media){return media instanceof HTMLVideoElement;}
 function mediaKind(media){return isVideoMedia(media)?'video':'image';}
-function mediaPoster(media,src){return isVideoMedia(media)?media.poster:src;}
+function mediaPoster(media,src){return isVideoMedia(media)?media.poster:assetURL(src);}
 function validMediaSource(a){
   if(!a||typeof a.src!=='string')return false;
   const video=/^data:video\/(mp4|webm);base64,/.test(a.src);
@@ -244,6 +247,7 @@ function drawPain(t){
 }
 function embeddedImage(im){if(isVideoMedia(im))return im.src;const c=document.createElement('canvas');c.width=im.width;c.height=im.height;c.getContext('2d').drawImage(im,0,0);return c.toDataURL('image/png');}
 async function openPainProject(p){
+ await ensureTemplateAssets('pain');
  const s=p.settings,valid=a=>a&&typeof a.src==='string'&&validMediaSource(a)&&typeof a.name==='string'&&a.name.length<=200;
  if(![1,2,3].includes(p.version)||!s||!validFrameSettings(s)||!Number.isFinite(s.duration)||s.duration<3||s.duration>18||!/^#[0-9a-f]{6}$/i.test(s.background)||typeof p.showText!=='boolean'||!Array.isArray(p.images)||p.images.length<1||p.images.length>12||(p.version===1&&p.images.length!==4)||!p.images.every(valid)||(p.version>=2&&p.images.some(a=>a.textSlot!==null&&(!Number.isInteger(a.textSlot)||a.textSlot<0||a.textSlot>3)))||(p.backgroundImage!=null&&!valid(p.backgroundImage)))throw new Error('痛点轮播模板参数或素材无效。');
  const ims=await Promise.all(p.images.map(async (a,i)=>({...a,textSlot:p.version===1?i:a.textSlot,image:await mediaFrom(a.src)}))),bg=p.backgroundImage?await imageFrom(p.backgroundImage.src):null;
@@ -278,6 +282,7 @@ function drawBuyer(t){
  ctx.save();ctx.translate((canvas.width-3000*fit)/2,(canvas.height-3000*fit)/2);ctx.scale(fit,fit);comp(2,at);ctx.restore();
 }
 async function openBuyerProject(p){
+ await ensureTemplateAssets('buyer');
  const s=p.settings,valid=a=>a&&typeof a.name==='string'&&a.name.length<=200&&typeof a.src==='string'&&validMediaSource(a);
  if(![1,2,3].includes(p.version)||!s||!validFrameSettings(s)||!Number.isFinite(s.duration)||s.duration<3||s.duration>18||!/^#[0-9a-f]{6}$/i.test(s.background)||!Array.isArray(p.images)||p.images.length<1||p.images.length>12||(p.version===1&&p.images.length!==4)||!p.images.every(a=>a===null||valid(a))||(p.backgroundImage!=null&&!valid(p.backgroundImage)))throw new Error('买家秀轮播模板参数或图片无效。');
  const ims=await Promise.all(p.images.map(async a=>a?{...a,image:await mediaFrom(a.src)}:{src:null,image:null,name:''})),bg=p.backgroundImage?await imageFrom(p.backgroundImage.src):null;
@@ -302,11 +307,47 @@ function drawBody(t){
  const v=sample(m.layers[0]);m.groups.forEach((g,k)=>{const alpha=(g.opacity[i]+(g.opacity[j]-g.opacity[i])*mix)/100,b=g.box;ctx.save();ctx.globalAlpha*=alpha*v[5]/100;if(k===3)ctx.drawImage(bodyUi[k],b[0]+v[0]-1225,0,b[2]-b[0],3500);else ctx.drawImage(bodyUi[k],b[0]+v[0]-1225,b[1]+v[1]-1750);ctx.restore();});ctx.restore();
 }
 async function openBodyProject(p){
+ await ensureTemplateAssets('body');
  const s=p.settings,valid=a=>a&&typeof a.name==='string'&&a.name.length<=200&&typeof a.src==='string'&&validMediaSource(a);
  if(![1,2].includes(p.version)||!s||!validFrameSettings(s)||!Number.isFinite(s.duration)||s.duration<3||s.duration>18||!/^#[0-9a-f]{6}$/i.test(s.background)||!Array.isArray(p.images)||p.images.length!==2||!p.images.every(valid)||(p.backgroundImage!=null&&!valid(p.backgroundImage)))throw new Error('左右移轴对比模板参数或图片无效。');
  const ims=await Promise.all(p.images.map(async a=>({...a,image:await mediaFrom(a.src)}))),bg=p.backgroundImage?await imageFrom(p.backgroundImage.src):null;
  switchTemplate('body');bodyCards=ims;settings={...frameExtras(s),size:s.size,duration:s.duration,background:s.background,scale:100,stack:false};customBackground=p.backgroundImage||null;backgroundImage=bg;time=0;renderBody();syncBackgroundUI();syncSettings();notice('左右移轴对比模板已打开。');
 }
+
+const templateLoads=new Map();
+const templateReady=new Set();
+async function loadDefaultCards(list){
+  const targets=[...list];
+  const originals=list.map(c=>({...c}));
+  await Promise.all(originals.map(async(c,i)=>{c.image=await imageFrom(c.src);if(targets[i].src===c.src&&!targets[i].image)targets[i].image=c.image;}));
+  return originals;
+}
+function ensureTemplateAssets(mode){
+  if(templateLoads.has(mode))return templateLoads.get(mode);
+  const task=(async()=>{
+    if(mode==='cards')await Promise.all([loadDefaultCards(cards),Promise.all(names.map((_,i)=>imageFrom(`assets/label-${i}.png`))).then(ims=>labelImages=ims),imageFrom('assets/stack.png').then(im=>{defaultStackImage=im;if(!customStack)stackImage=im;syncStackUI();})]);
+    if(mode==='plain')await imageFrom('assets/plain-long.png').then(im=>{defaultLongImage=im;if(!longImage)longImage=im;});
+    if(mode==='pain')await Promise.all([loadDefaultCards(painCards).then(ims=>painDefaults=ims),Promise.all(painNames.map((_,i)=>imageFrom(`assets/pain-text-${i}.png`))).then(ims=>painTexts=ims),imageFrom('assets/pain-icons.png').then(im=>painIcons=im)]);
+    if(mode==='buyer')await loadDefaultCards(buyerCards);
+    if(mode==='body')await Promise.all([loadDefaultCards(bodyCards).then(ims=>bodyDefaults=ims),Promise.all([0,1,2,3].map(i=>imageFrom(`assets/body-ui-${i}.png`))).then(ims=>bodyUi=ims)]);
+    if(mode==='smart')await ensureSmart();
+    templateReady.add(mode);
+    ({cards:renderCards,plain:syncLongUI,pain:renderPain,buyer:renderBuyer,body:renderBody,smart:renderSmart})[mode]();
+  })();
+  templateLoads.set(mode,task);task.catch(()=>templateLoads.delete(mode));return task;
+}
+function loadSelectedTemplate(){
+  const mode=activeTemplate,reset={plain:'resetLong',pain:'resetPain',body:'resetBody'}[mode];
+  $('retryAssets').hidden=true;
+  if(templateReady.has(mode))return;
+  if(reset)$(reset).disabled=true;
+  const message='正在加载所选模板素材…';notice(message);
+  ensureTemplateAssets(mode).then(()=>{
+    if(reset)$(reset).disabled=false;
+    if(activeTemplate===mode){draw(time);if($('notice').textContent===message)notice('');}
+  }).catch(()=>{if(activeTemplate===mode){notice('素材加载未完成，请检查网络后重试。');$('retryAssets').hidden=false;}});
+}
+$('retryAssets').onclick=loadSelectedTemplate;
 
 const templateStates={};
 function switchTemplate(mode){
@@ -319,7 +360,7 @@ function switchTemplate(mode){
   $('templateMode').value=mode;
   $('smartMaterials').hidden=mode!=='smart';$('bodyMaterials').hidden=mode!=='body';$('buyerMaterials').hidden=mode!=='buyer';$('painMaterials').hidden=mode!=='pain';$('cardMaterials').hidden=mode!=='cards';$('longMaterials').hidden=mode!=='plain';$('cardScale').hidden=mode!=='cards';$('trailSettings').hidden=mode!=='cards';
   canvas.setAttribute('aria-label',mode==='smart'?'课程卡片轮播2轮播预览':mode==='body'?'左右移轴对比左右对比预览':mode==='buyer'?'买家秀横向轮播预览':mode==='pain'?'痛点轮播预览':mode==='plain'?'长图横向滚动预览':'六张课程卡片循环轮播预览');
-  syncBackgroundUI();syncSettings();notice('');if(mode==='smart'&&!smartReady){notice('正在加载动态人物素材…');ensureSmart().catch(()=>{});}
+  syncBackgroundUI();syncSettings();notice('');loadSelectedTemplate();
 }
 $('templateMode').onchange=e=>switchTemplate(e.target.value);
 function syncLongUI(){$('longPreview').src=mediaPoster(longImage,longSource);$('longName').textContent=longName;}
@@ -337,6 +378,7 @@ function drawLong(t){
   ctx.drawImage(longImage,-.5-progress*distance,v[1]-v[7],width,1214);ctx.restore();
 }
 async function openLongProject(p){
+ await ensureTemplateAssets('plain');
   const s=p.settings,asset=p.longImage,bg=p.backgroundImage;
   if(![1,2].includes(p.version)||!s||!validFrameSettings(s)||!Number.isFinite(s.duration)||s.duration<3||s.duration>18||!/^#[0-9a-f]{6}$/i.test(s.background))throw new Error('长图模板参数无效。');
   const valid=a=>a&&typeof a.src==='string'&&validMediaSource(a)&&typeof a.name==='string'&&a.name.length<=200;
@@ -391,6 +433,7 @@ function draw(t){
   syncTemplateMedia(t);
   const w=canvas.width,h=canvas.height;ctx.clearRect(0,0,w,h);ctx.fillStyle=settings.background;ctx.fillRect(0,0,w,h);
   if(backgroundImage){const z=Math.max(w/backgroundImage.width,h/backgroundImage.height);ctx.drawImage(backgroundImage,(w-backgroundImage.width*z)/2,(h-backgroundImage.height*z)/2,backgroundImage.width*z,backgroundImage.height*z);}
+  if(!templateReady.has(activeTemplate))return;
   ctx.save();const contentZoom=(settings.contentScale??100)/100;ctx.translate(w/2,h/2);ctx.scale(contentZoom,contentZoom);ctx.translate(-w/2,-h/2);
   try{
   if(activeTemplate==='plain'){drawLong(t);return;}
@@ -507,10 +550,12 @@ $('play').onclick=()=>setPlaying(!playing);$('replay').onclick=()=>{time=0;draw(
 $('resetSettings').onclick=()=>{settings=activeTemplate==='smart'?{size:'1668,1455',duration:10.44,scale:100,background:'#ffe3c9',stack:false,originalBackground:true}:activeTemplate==='body'?{size:'980,1400',duration:4,scale:100,background:'#ffffff',stack:false}:activeTemplate==='buyer'?{size:'1080,1080',duration:6,scale:100,background:'#ffffff',stack:false}:activeTemplate==='pain'?{size:'1500,1342',duration:8,scale:100,background:'#ffffff',stack:false}:activeTemplate==='plain'?{size:'1500,1214',duration:8,scale:100,background:'#ffffff',stack:false}:{size:'1176,1144',duration:6,scale:100,background:'#f2f2f2',stack:true};syncSettings();};
 $('imageInput').onchange=async e=>{const file=e.target.files[0],index=selected;e.target.value='';if(!file)return;try{const result=await importMedia(file);Object.assign(cards[index],result);invalidateVideo();renderCards();draw(time);notice(`第 ${index+1} 张卡片已替换。`);}catch(e){notice(e.message);}};
 $('batchUpload').onclick=()=>$('batchInput').click();$('batchInput').onchange=async e=>{const files=[...e.target.files];e.target.value='';if(!files.length)return;if(files.length>6){notice('一次最多选择 6 个素材，请重新选择。');return;}try{const imported=await Promise.all(files.map(file=>importMedia(file)));imported.forEach((c,i)=>Object.assign(cards[i],c));invalidateVideo();renderCards();draw(time);notice(`已按所选文件顺序替换前 ${files.length} 张卡片，可用前移、后移调整。`);}catch(e){notice(e.message);}};
-$('saveProject').onclick=saveProject;$('loadProject').onclick=()=>$('projectInput').click();$('projectInput').onchange=async e=>{const file=e.target.files[0];e.target.value='';if(!file)return;try{if(file.size>750*1024*1024)throw new Error('模板文件过大，请选择 750 MB 以内的文件。');const p=JSON.parse(await file.text());if(p.type==='smart-carousel'){await openSmartProject(p);return;}if(p.type==='body-compare'){await openBodyProject(p);return;}if(p.type==='buyer-carousel'){await openBuyerProject(p);return;}if(p.type==='pain-carousel'){await openPainProject(p);return;}if(p.type==='long-scroll'){await openLongProject(p);return;}validateProject(p);const ready=await Promise.all(p.cards.map(async c=>({...c,image:await mediaFrom(c.src)})));const trailImage=p.trail?await imageFrom(p.trail.src):defaultStackImage;const loadedBackground=p.backgroundImage?await imageFrom(p.backgroundImage.src):null;switchTemplate('cards');cards=ready;settings=p.settings;customBackground=p.backgroundImage||null;backgroundImage=loadedBackground;syncBackgroundUI();customStack=p.trail||null;stackImage=trailImage;syncStackUI();time=0;renderCards();syncSettings();notice('模板已打开，可以继续替换素材。');}catch(e){notice('打开失败：'+e.message);}};
+$('saveProject').onclick=saveProject;$('loadProject').onclick=()=>$('projectInput').click();$('projectInput').onchange=async e=>{const file=e.target.files[0];e.target.value='';if(!file)return;try{if(file.size>750*1024*1024)throw new Error('模板文件过大，请选择 750 MB 以内的文件。');const p=JSON.parse(await file.text());if(p.type==='smart-carousel'){await openSmartProject(p);return;}if(p.type==='body-compare'){await openBodyProject(p);return;}if(p.type==='buyer-carousel'){await openBuyerProject(p);return;}if(p.type==='pain-carousel'){await openPainProject(p);return;}if(p.type==='long-scroll'){await openLongProject(p);return;}validateProject(p);await ensureTemplateAssets('cards');const ready=await Promise.all(p.cards.map(async c=>({...c,image:await mediaFrom(c.src)})));const trailImage=p.trail?await imageFrom(p.trail.src):defaultStackImage;const loadedBackground=p.backgroundImage?await imageFrom(p.backgroundImage.src):null;switchTemplate('cards');cards=ready;settings=p.settings;customBackground=p.backgroundImage||null;backgroundImage=loadedBackground;syncBackgroundUI();customStack=p.trail||null;stackImage=trailImage;syncStackUI();time=0;renderCards();syncSettings();notice('模板已打开，可以继续替换素材。');}catch(e){notice('打开失败：'+e.message);}};
 $('closeExport').onclick=()=>$('exportDialog').close();$('exportDialog').addEventListener('cancel',e=>{if(exporting){e.preventDefault();cancelRecording?.();}});
 $('export').onclick=exportVideo;$('exportTop').onclick=exportVideo;$('cancelExport').onclick=()=>cancelRecording?.();document.addEventListener('visibilitychange',()=>{if(document.hidden&&exporting)cancelRecording?.();});
 $('formatLabel').textContent=supportedMime?`${extension.toUpperCase()} · 25 FPS`:'暂不支持';$('formatHint').textContent=supportedMime?`导出 ${extension.toUpperCase()} 无声视频，包含完整一轮。${extension==='webm'?'此浏览器不支持 MP4 录制，将使用 WebM。':''}`:'请用最新版 Chrome 或 Edge 导出视频。';
-Promise.all([Promise.all(bodyCards.map(async c=>{c.image=await imageFrom(c.src);})).then(()=>{bodyDefaults=bodyCards.map(c=>({...c}));renderBody();}),Promise.all([0,1,2,3].map(i=>imageFrom(`assets/body-ui-${i}.png`))).then(ims=>bodyUi=ims),Promise.all(buyerCards.map(async c=>{c.image=await imageFrom(c.src);})),Promise.all(painCards.map(async c=>{c.image=await imageFrom(c.src);})).then(()=>{painDefaults=painCards.map(c=>({...c}));renderPain();}),Promise.all(painNames.map((_,i)=>imageFrom(`assets/pain-text-${i}.png`))).then(ims=>painTexts=ims),imageFrom('assets/pain-icons.png').then(im=>painIcons=im),imageFrom('assets/plain-long.png').then(im=>{longImage=defaultLongImage=im;syncLongUI();}),Promise.all(cards.map(async c=>{c.image=await imageFrom(c.src);})),Promise.all(names.map((_,i)=>imageFrom(`assets/label-${i}.png`))).then(images=>labelImages=images),imageFrom('assets/stack.png').then(img=>{stackImage=defaultStackImage=img;syncStackUI();})]).then(()=>{renderBuyer();renderCards();syncSettings();if(!matchMedia('(prefers-reduced-motion: reduce)').matches)setPlaying(true);requestAnimationFrame(loop);}).catch(e=>notice('素材加载失败：'+e.message));
+renderCards();syncSettings();loadSelectedTemplate();
+if(!matchMedia('(prefers-reduced-motion: reduce)').matches)setPlaying(true);
+requestAnimationFrame(loop);
 
 setupSmart();
