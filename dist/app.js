@@ -462,6 +462,13 @@ function validFrameSettings(s){
 }
 function frameExtras(s){return {contentScale:s.contentScale??100,customSize:s.customSize===true};}
 function syncFrameUI(){
+  const defaults={cards:'1176,1144',plain:'1500,1214',pain:'1500,1342',buyer:'1080,1080',body:'980,1400',smart:'1668,1455',flip:'1500,1508'};
+  const defaultSize=defaults[activeTemplate];
+  const choices=[[defaultSize,`模板默认${defaultSize==='1080,1080'?' · 1:1':''} · ${defaultSize.replace(',', ' × ')}`],
+    ['1080,1080','1:1 正方形 · 1080 × 1080'],['1920,1080','16:9 横屏 · 1920 × 1080'],
+    ['1080,1920','9:16 竖屏 · 1080 × 1920'],['1440,1080','4:3 横屏 · 1440 × 1080'],
+    ['1080,1440','3:4 竖屏 · 1080 × 1440'],['custom','自定义宽高 / 比例']];
+  const seen=new Set();$('size').replaceChildren(...choices.filter(([value])=>{if(seen.has(value))return false;seen.add(value);return true;}).map(([value,label])=>new Option(label,value)));
   const preset=[...$('size').options].some(o=>o.value===settings.size);
   settings.contentScale??=100;
   $('size').value=settings.customSize||!preset?'custom':settings.size;
