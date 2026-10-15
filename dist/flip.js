@@ -10,7 +10,7 @@ let flipDefaults=[],flipBlues=[],flipLabels=[],flipMotion=null,flipSelected=null
 const flipSurfaces=[];
 let flipTintedLabels=[],flipTintColor=null;
 let flipBlurCanvas=null,flipShutterCanvas=null;
-function flipDefaultSettings(){return {size:'1500,1508',duration:10,scale:100,contentScale:100,background:'#eceff2',flipAccent:'#ebb300',flipBodyColor:'#010101',flipAccentOpacity:100,stack:false};}
+function flipDefaultSettings(){return {size:'1500,1508',duration:10,scale:100,contentScale:100,background:'#eceff2',flipAccent:'#ebb300',flipBodyColor:'#010101',flipLineColor:'#ffffff',flipAccentOpacity:100,stack:false};}
 async function ensureFlip(){
   const [motion,originals,blues,labels]=await Promise.all([
     window.FLIP_MOTION?Promise.resolve(window.FLIP_MOTION):fetch('flip-motion.json').then(r=>{if(!r.ok)throw Error('翻页动画参数加载失败。');return r.json();}),
@@ -22,6 +22,7 @@ async function ensureFlip(){
   if(!flipSurfaces.length)for(let i=0;i<8;i++){const canvas=document.createElement('canvas');canvas.width=1352;canvas.height=764;flipSurfaces.push({canvas,key:null});}
 }
 function syncFlipColor(){
+  const lineColor=settings.flipLineColor||'#ffffff';$('flipLinePicker').value=lineColor;$('flipLineHex').value=lineColor.toUpperCase();$('flipLineHex').removeAttribute('aria-invalid');$('flipLineHint').textContent='仅修改滑块下方横线的颜色，保留原始 16% 透明度。';
   const bodyColor=settings.flipBodyColor||'#010101';$('flipBodyPicker').value=bodyColor;$('flipBodyHex').value=bodyColor.toUpperCase();$('flipBodyHex').removeAttribute('aria-invalid');$('flipBodyHint').textContent='四组下方两行正文同步变色，保留选中与非选中的透明度联动。';
   const opacity=settings.flipAccentOpacity??100;$('flipAccentOpacity').value=opacity;$('flipAccentOpacityNumber').value=opacity;
   const color=settings.flipAccent||'#ebb300';$('flipAccentPicker').value=color;$('flipAccentHex').value=color.toUpperCase();$('flipAccentHex').removeAttribute('aria-invalid');$('flipColorHint').textContent='滑块与四组第一行文案同步变色，保留透明度联动。';
@@ -35,6 +36,11 @@ function setFlipBodyColor(value){
   const raw=value.trim(),color=raw.startsWith('#')?raw:'#'+raw;
   if(!/^#[0-9a-f]{6}$/i.test(color)){$('flipBodyHex').setAttribute('aria-invalid','true');$('flipBodyHint').textContent='请输入 6 位十六进制色值，例如 #010101 或 12B8E8。';return;}
   settings.flipBodyColor=color.toLowerCase();$('flipBodyPicker').value=settings.flipBodyColor;$('flipBodyHex').removeAttribute('aria-invalid');$('flipBodyHint').textContent='四组下方两行正文同步变色，保留选中与非选中的透明度联动。';invalidateVideo();draw(time);
+}
+function setFlipLineColor(value){
+  const raw=value.trim(),color=raw.startsWith('#')?raw:'#'+raw;
+  if(!/^#[0-9a-f]{6}$/i.test(color)){$('flipLineHex').setAttribute('aria-invalid','true');$('flipLineHint').textContent='请输入 6 位十六进制色值，例如 #FFFFFF 或 12B8E8。';return;}
+  settings.flipLineColor=color.toLowerCase();$('flipLinePicker').value=settings.flipLineColor;$('flipLineHex').removeAttribute('aria-invalid');$('flipLineHint').textContent='仅修改滑块下方横线的颜色，保留原始 16% 透明度。';invalidateVideo();draw(time);
 }
 function flipLabelImages(){
   const color=settings.flipAccent||'#ebb300',bodyColor=settings.flipBodyColor||'#010101',key=color+'|'+bodyColor;if(color==='#ebb300'&&bodyColor==='#010101')return flipLabels;
@@ -68,6 +74,10 @@ function setupFlip(){
   $('flipBodyHex').oninput=e=>{if(!exporting)setFlipBodyColor(e.target.value);};
   $('flipBodyHex').onblur=()=>{if($('flipBodyHex').getAttribute('aria-invalid')!=='true')syncFlipColor();};
   $('resetFlipBodyColor').onclick=()=>{if(exporting)return;setFlipBodyColor('#010101');syncFlipColor();};
+  $('flipLinePicker').oninput=e=>{if(exporting)return;setFlipLineColor(e.target.value);syncFlipColor();};
+  $('flipLineHex').oninput=e=>{if(!exporting)setFlipLineColor(e.target.value);};
+  $('flipLineHex').onblur=()=>{if($('flipLineHex').getAttribute('aria-invalid')!=='true')syncFlipColor();};
+  $('resetFlipLineColor').onclick=()=>{if(exporting)return;setFlipLineColor('#ffffff');syncFlipColor();};
   const setOpacity=e=>{if(exporting||e.target.value==='')return;const value=Number(e.target.value);if(!Number.isFinite(value))return;settings.flipAccentOpacity=Math.max(0,Math.min(100,Math.round(value)));$('flipAccentOpacity').value=settings.flipAccentOpacity;$('flipAccentOpacityNumber').value=settings.flipAccentOpacity;invalidateVideo();draw(time);};
   $('flipAccentOpacity').oninput=setOpacity;$('flipAccentOpacityNumber').oninput=setOpacity;
   $('flipAccentOpacityNumber').onblur=()=>{$('flipAccentOpacityNumber').value=settings.flipAccentOpacity??100;};
@@ -132,7 +142,7 @@ function drawFlip(t){
   ctx.restore();
   const ui=flipSample(flipMotion.ui,at);
   const accentOpacity=(settings.flipAccentOpacity??100)/100;
-  ctx.fillStyle='rgba(255,255,255,.16)';ctx.fillRect(2,1335,1349,3);ctx.fillStyle=settings.flipAccent||'#ebb300';ctx.fillRect(ui[0],ui[1],180,8);
+  ctx.save();ctx.globalAlpha*=.16;ctx.fillStyle=settings.flipLineColor||'#ffffff';ctx.fillRect(2,1335,1349,3);ctx.restore();ctx.fillStyle=settings.flipAccent||'#ebb300';ctx.fillRect(ui[0],ui[1],180,8);
   const labelImages=flipLabelImages();
   const xs=[8.5,423.5,748,1113],widths=[251,186,266,228];
   flipCards.forEach((card,i)=>{
@@ -161,10 +171,11 @@ async function saveFlipProject(){
 async function openFlipProject(p){
   const s=p.settings,valid=c=>c&&validMediaSource(c)&&typeof c.name==='string'&&c.name.length<=200;
   if(p.version!==1||!s||!validFrameSettings(s)||!Number.isFinite(s.duration)||s.duration<3||s.duration>18||!/^#[0-9a-f]{6}$/i.test(s.background)||!Array.isArray(p.cards)||p.cards.length!==4||!p.cards.every(c=>valid(c)&&[['category',6],['title',20],['body',48]].every(([k,n])=>typeof c[k]==='string'&&c[k].length<=n))||(p.backgroundImage!=null&&(!valid(p.backgroundImage)||!/^data:image\//.test(p.backgroundImage.src))))throw Error('翻页模板文件或素材无效。');
+  if(s.flipLineColor!==undefined&&(typeof s.flipLineColor!=='string'||!/^#[0-9a-f]{6}$/i.test(s.flipLineColor)))throw Error('横线颜色必须是 6 位十六进制色值。');
   if(s.flipBodyColor!==undefined&&(typeof s.flipBodyColor!=='string'||!/^#[0-9a-f]{6}$/i.test(s.flipBodyColor)))throw Error('正文颜色必须是 6 位十六进制色值。');
   if(s.flipAccent!==undefined&&(typeof s.flipAccent!=='string'||!/^#[0-9a-f]{6}$/i.test(s.flipAccent)))throw Error('强调色必须是 6 位十六进制色值。');
   if(s.flipAccentOpacity!==undefined&&(!Number.isFinite(s.flipAccentOpacity)||s.flipAccentOpacity<0||s.flipAccentOpacity>100))throw Error('分类文字透明度必须在 0%–100% 之间。');
   await ensureTemplateAssets('flip');
   const [cards,bg]=await Promise.all([Promise.all(p.cards.map(async c=>({...c,image:await mediaFrom(c.src),original:c.original===true&&c.kind!=='video'}))),p.backgroundImage?imageFrom(p.backgroundImage.src):null]);
-  switchTemplate('flip');flipCards=cards;settings={...flipDefaultSettings(),...frameExtras(s),size:s.size,duration:s.duration,background:s.background,flipAccent:(s.flipAccent||'#ebb300').toLowerCase(),flipBodyColor:(s.flipBodyColor||'#010101').toLowerCase(),flipAccentOpacity:s.flipAccentOpacity??100};customBackground=p.backgroundImage||null;backgroundImage=bg;time=0;flipSurfaces.forEach(b=>b.key=null);renderFlip();syncBackgroundUI();syncSettings();notice('翻页模板已打开。');
+  switchTemplate('flip');flipCards=cards;settings={...flipDefaultSettings(),...frameExtras(s),size:s.size,duration:s.duration,background:s.background,flipAccent:(s.flipAccent||'#ebb300').toLowerCase(),flipBodyColor:(s.flipBodyColor||'#010101').toLowerCase(),flipLineColor:(s.flipLineColor||'#ffffff').toLowerCase(),flipAccentOpacity:s.flipAccentOpacity??100};customBackground=p.backgroundImage||null;backgroundImage=bg;time=0;flipSurfaces.forEach(b=>b.key=null);renderFlip();syncBackgroundUI();syncSettings();notice('翻页模板已打开。');
 }
