@@ -10,7 +10,7 @@ let flipDefaults=[],flipBlues=[],flipLabels=[],flipMotion=null,flipSelected=null
 const flipSurfaces=[];
 let flipTintedLabels=[],flipTintColor=null;
 let flipBlurCanvas=null,flipShutterCanvas=null;
-function flipDefaultSettings(){return {size:'1500,1508',duration:10,scale:100,contentScale:100,background:'#eceff2',flipAccent:'#ebb300',flipAccentOpacity:100,stack:false};}
+function flipDefaultSettings(){return {size:'1500,1508',duration:10,scale:100,contentScale:100,background:'#eceff2',flipAccent:'#ebb300',flipBodyColor:'#010101',flipAccentOpacity:100,stack:false};}
 async function ensureFlip(){
   const [motion,originals,blues,labels]=await Promise.all([
     window.FLIP_MOTION?Promise.resolve(window.FLIP_MOTION):fetch('flip-motion.json').then(r=>{if(!r.ok)throw Error('翻页动画参数加载失败。');return r.json();}),
@@ -22,6 +22,7 @@ async function ensureFlip(){
   if(!flipSurfaces.length)for(let i=0;i<8;i++){const canvas=document.createElement('canvas');canvas.width=1352;canvas.height=764;flipSurfaces.push({canvas,key:null});}
 }
 function syncFlipColor(){
+  const bodyColor=settings.flipBodyColor||'#010101';$('flipBodyPicker').value=bodyColor;$('flipBodyHex').value=bodyColor.toUpperCase();$('flipBodyHex').removeAttribute('aria-invalid');$('flipBodyHint').textContent='四组下方两行正文同步变色，保留选中与非选中的透明度联动。';
   const opacity=settings.flipAccentOpacity??100;$('flipAccentOpacity').value=opacity;$('flipAccentOpacityNumber').value=opacity;
   const color=settings.flipAccent||'#ebb300';$('flipAccentPicker').value=color;$('flipAccentHex').value=color.toUpperCase();$('flipAccentHex').removeAttribute('aria-invalid');$('flipColorHint').textContent='滑块与四组第一行文案同步变色，保留透明度联动。';
 }
@@ -30,13 +31,19 @@ function setFlipColor(value){
   if(!/^#[0-9a-f]{6}$/i.test(color)){$('flipAccentHex').setAttribute('aria-invalid','true');$('flipColorHint').textContent='请输入 6 位十六进制色值，例如 #EBB300 或 12B8E8。';return;}
   settings.flipAccent=color.toLowerCase();$('flipAccentPicker').value=settings.flipAccent;$('flipAccentHex').removeAttribute('aria-invalid');$('flipColorHint').textContent='滑块与四组第一行文案同步变色，保留透明度联动。';invalidateVideo();draw(time);
 }
+function setFlipBodyColor(value){
+  const raw=value.trim(),color=raw.startsWith('#')?raw:'#'+raw;
+  if(!/^#[0-9a-f]{6}$/i.test(color)){$('flipBodyHex').setAttribute('aria-invalid','true');$('flipBodyHint').textContent='请输入 6 位十六进制色值，例如 #010101 或 12B8E8。';return;}
+  settings.flipBodyColor=color.toLowerCase();$('flipBodyPicker').value=settings.flipBodyColor;$('flipBodyHex').removeAttribute('aria-invalid');$('flipBodyHint').textContent='四组下方两行正文同步变色，保留选中与非选中的透明度联动。';invalidateVideo();draw(time);
+}
 function flipLabelImages(){
-  const color=settings.flipAccent||'#ebb300';if(color==='#ebb300')return flipLabels;
-  if(flipTintColor===color)return flipTintedLabels;
-  flipTintColor=color;flipTintedLabels=flipLabels.map(im=>{
+  const color=settings.flipAccent||'#ebb300',bodyColor=settings.flipBodyColor||'#010101',key=color+'|'+bodyColor;if(color==='#ebb300'&&bodyColor==='#010101')return flipLabels;
+  if(flipTintColor===key)return flipTintedLabels;
+  flipTintColor=key;flipTintedLabels=flipLabels.map(im=>{
     const c=document.createElement('canvas');c.width=im.width;c.height=im.height;const q=c.getContext('2d'),header=44;
     q.drawImage(im,0,0,im.width,header,0,0,im.width,header);q.globalCompositeOperation='source-in';q.fillStyle=color;q.fillRect(0,0,c.width,c.height);
-    q.globalCompositeOperation='source-over';q.drawImage(im,0,header,im.width,im.height-header,0,header,im.width,im.height-header);return c;
+    q.globalCompositeOperation='source-over';
+    const body=document.createElement('canvas');body.width=im.width;body.height=im.height-header;const b=body.getContext('2d');b.drawImage(im,0,header,im.width,im.height-header,0,0,body.width,body.height);b.globalCompositeOperation='source-in';b.fillStyle=bodyColor;b.fillRect(0,0,body.width,body.height);q.drawImage(body,0,header);return c;
   });return flipTintedLabels;
 }
 function renderFlip(){
@@ -57,6 +64,10 @@ function renderFlip(){
   });
 }
 function setupFlip(){
+  $('flipBodyPicker').oninput=e=>{if(exporting)return;setFlipBodyColor(e.target.value);syncFlipColor();};
+  $('flipBodyHex').oninput=e=>{if(!exporting)setFlipBodyColor(e.target.value);};
+  $('flipBodyHex').onblur=()=>{if($('flipBodyHex').getAttribute('aria-invalid')!=='true')syncFlipColor();};
+  $('resetFlipBodyColor').onclick=()=>{if(exporting)return;setFlipBodyColor('#010101');syncFlipColor();};
   const setOpacity=e=>{if(exporting||e.target.value==='')return;const value=Number(e.target.value);if(!Number.isFinite(value))return;settings.flipAccentOpacity=Math.max(0,Math.min(100,Math.round(value)));$('flipAccentOpacity').value=settings.flipAccentOpacity;$('flipAccentOpacityNumber').value=settings.flipAccentOpacity;invalidateVideo();draw(time);};
   $('flipAccentOpacity').oninput=setOpacity;$('flipAccentOpacityNumber').oninput=setOpacity;
   $('flipAccentOpacityNumber').onblur=()=>{$('flipAccentOpacityNumber').value=settings.flipAccentOpacity??100;};
@@ -137,7 +148,7 @@ function drawFlip(t){
       const x=xs[i],w=widths[i];ctx.textBaseline='top';ctx.font='26px "Microsoft YaHei",sans-serif';ctx.fillStyle=settings.flipAccent||'#ebb300';
       const cat=card.category,tail=' | '+card.title,total=ctx.measureText(cat+tail).width,scale=Math.min(1,w/Math.max(1,total));
       ctx.save();ctx.translate(x,1375);ctx.scale(scale,1);const lead=Array.from(cat).slice(0,2).join(''),rest=Array.from(cat).slice(2).join('');ctx.globalAlpha*=.7*accentOpacity;ctx.fillText(lead,0,0);ctx.globalAlpha=ui[i+2]/100*.7;ctx.fillText(rest,ctx.measureText(lead).width,0);ctx.globalAlpha=ui[i+2]/100;ctx.fillText(tail,ctx.measureText(cat).width,0);ctx.restore();
-      ctx.fillStyle='#010101';ctx.font='38px "Microsoft YaHei",sans-serif';const lines=card.body.split(/\r?\n/).slice(0,2);lines.forEach((line,j)=>ctx.fillText(line,x,1430+j*46,w));
+      ctx.fillStyle=settings.flipBodyColor||'#010101';ctx.font='38px "Microsoft YaHei",sans-serif';const lines=card.body.split(/\r?\n/).slice(0,2);lines.forEach((line,j)=>ctx.fillText(line,x,1430+j*46,w));
     }ctx.restore();
   });
   ctx.restore();
@@ -150,9 +161,10 @@ async function saveFlipProject(){
 async function openFlipProject(p){
   const s=p.settings,valid=c=>c&&validMediaSource(c)&&typeof c.name==='string'&&c.name.length<=200;
   if(p.version!==1||!s||!validFrameSettings(s)||!Number.isFinite(s.duration)||s.duration<3||s.duration>18||!/^#[0-9a-f]{6}$/i.test(s.background)||!Array.isArray(p.cards)||p.cards.length!==4||!p.cards.every(c=>valid(c)&&[['category',6],['title',20],['body',48]].every(([k,n])=>typeof c[k]==='string'&&c[k].length<=n))||(p.backgroundImage!=null&&(!valid(p.backgroundImage)||!/^data:image\//.test(p.backgroundImage.src))))throw Error('翻页模板文件或素材无效。');
+  if(s.flipBodyColor!==undefined&&(typeof s.flipBodyColor!=='string'||!/^#[0-9a-f]{6}$/i.test(s.flipBodyColor)))throw Error('正文颜色必须是 6 位十六进制色值。');
   if(s.flipAccent!==undefined&&(typeof s.flipAccent!=='string'||!/^#[0-9a-f]{6}$/i.test(s.flipAccent)))throw Error('强调色必须是 6 位十六进制色值。');
   if(s.flipAccentOpacity!==undefined&&(!Number.isFinite(s.flipAccentOpacity)||s.flipAccentOpacity<0||s.flipAccentOpacity>100))throw Error('分类文字透明度必须在 0%–100% 之间。');
   await ensureTemplateAssets('flip');
   const [cards,bg]=await Promise.all([Promise.all(p.cards.map(async c=>({...c,image:await mediaFrom(c.src),original:c.original===true&&c.kind!=='video'}))),p.backgroundImage?imageFrom(p.backgroundImage.src):null]);
-  switchTemplate('flip');flipCards=cards;settings={...flipDefaultSettings(),...frameExtras(s),size:s.size,duration:s.duration,background:s.background,flipAccent:(s.flipAccent||'#ebb300').toLowerCase(),flipAccentOpacity:s.flipAccentOpacity??100};customBackground=p.backgroundImage||null;backgroundImage=bg;time=0;flipSurfaces.forEach(b=>b.key=null);renderFlip();syncBackgroundUI();syncSettings();notice('翻页模板已打开。');
+  switchTemplate('flip');flipCards=cards;settings={...flipDefaultSettings(),...frameExtras(s),size:s.size,duration:s.duration,background:s.background,flipAccent:(s.flipAccent||'#ebb300').toLowerCase(),flipBodyColor:(s.flipBodyColor||'#010101').toLowerCase(),flipAccentOpacity:s.flipAccentOpacity??100};customBackground=p.backgroundImage||null;backgroundImage=bg;time=0;flipSurfaces.forEach(b=>b.key=null);renderFlip();syncBackgroundUI();syncSettings();notice('翻页模板已打开。');
 }
