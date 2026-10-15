@@ -10,7 +10,7 @@ let flipDefaults=[],flipBlues=[],flipLabels=[],flipMotion=null,flipSelected=null
 const flipSurfaces=[];
 let flipTintedLabels=[],flipTintColor=null;
 let flipBlurCanvas=null,flipShutterCanvas=null;
-function flipDefaultSettings(){return {size:'1352,1520',duration:10,scale:100,contentScale:100,background:'#eceff2',flipAccent:'#ebb300',flipAccentOpacity:100,stack:false};}
+function flipDefaultSettings(){return {size:'1500,1508',duration:10,scale:100,contentScale:100,background:'#eceff2',flipAccent:'#ebb300',flipAccentOpacity:100,stack:false};}
 async function ensureFlip(){
   const [motion,originals,blues,labels]=await Promise.all([
     window.FLIP_MOTION?Promise.resolve(window.FLIP_MOTION):fetch('flip-motion.json').then(r=>{if(!r.ok)throw Error('翻页动画参数加载失败。');return r.json();}),
@@ -101,8 +101,10 @@ function paintFlipLayer(surface,v,q=ctx,weight=1){
 }
 function drawFlip(t){
   if(!flipMotion)return;
-  const at=Math.min(9.9999,Math.max(0,t/settings.duration*10)),fit=Math.min(canvas.width/1352,canvas.height/1520);
-  ctx.save();ctx.translate((canvas.width-1352*fit)/2,(canvas.height-1520*fit)/2);ctx.scale(fit,fit);
+  const at=Math.min(9.9999,Math.max(0,t/settings.duration*10)),fit=Math.min(canvas.width/1500,canvas.height/1508);
+  ctx.save();ctx.translate((canvas.width-1500*fit)/2,(canvas.height-1508*fit)/2);ctx.scale(fit,fit);
+  // Frame 391 reference: original 1352px content centered with a 192px upward offset.
+  ctx.translate(74,-192);
   ctx.save();ctx.beginPath();ctx.rect(0,0,1352,1274);ctx.clip();
   const layers=flipMotion.layers.map((l,i)=>({l,i,v:flipSample(l.samples,at)})).filter(o=>at>=o.l.inPoint&&at<o.l.outPoint&&o.v[6]>.01).sort((a,b)=>b.v[2]-a.v[2]||b.i-a.i);
   for(const {l,i,v} of layers){
