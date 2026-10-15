@@ -84,6 +84,7 @@ function activeMediaVideos(){
 }
 function pauseTemplateMedia(){templateVideos.forEach(v=>v.pause());}
 function syncTemplateMedia(t){
+  if(frameExportActive)return;
   const current=activeMediaVideos(),play=playing||exporting;
   templateVideos.filter(v=>!current.includes(v)).forEach(v=>v.pause());templateVideos=current;
   for(const v of current){
@@ -522,14 +523,20 @@ function exportProblem(message){$('download').hidden=true;showExportDialog('暂�
 async function exportVideo(){
   if(exporting)return;
   if(activeTemplate==='buyer'&&buyerCards.some(c=>!c.image)){exportProblem('请先补齐当前所有画面的素材，再导出视频。');return;}
-  if(!supportedMime||!canvas.captureStream){exportProblem('当前浏览器不支持视频导出，请使用最新版 Chrome 或 Edge 打开此页面。');return;}
+  if(activeTemplate!=='flip'&&(!supportedMime||!canvas.captureStream)){exportProblem('当前浏览器不支持视频导出，请使用最新版 Chrome 或 Edge 打开此页面。');return;}
   if(activeTemplate==='flip'?(!templateReady.has('flip')||flipCards.some(c=>!c.image)):activeTemplate==='smart'?!smartReady:activeTemplate==='body'?(bodyCards.some(c=>!c.image)||bodyUi.length!==4):activeTemplate==='plain'?!longImage:activeTemplate==='pain'?(!painIcons||painCards.some(c=>!c.image)):cards.some(c=>!c.image)){exportProblem('素材仍在加载，请稍后重新导出。');return;}
   exporting=true;setPlaying(false);document.body.classList.add('exporting');$('exportState').hidden=false;$('exportProgress').value=0;$('download').hidden=true;notice('');$('exportMessage').textContent='正在准备…';$('closeExport').hidden=true;showExportDialog('正在导出视频','正在准备画面，完成后会自动开始下载。');
   const editorControls=[...document.querySelectorAll('.editor button,.editor input,.editor select,.editor textarea')].map(el=>({el,disabled:el.disabled}));editorControls.forEach(x=>x.el.disabled=true);
   const disableIds=['play','replay','timeline','saveProject','loadProject','exportTop','templateMode'];disableIds.forEach(id=>$(id).disabled=true);
   let stream,recorder,raf,timer,cancelled=false;
+  const outputExtension=activeTemplate==='flip'?'mp4':extension;
   cancelRecording=()=>{cancelled=true;if(recorder&&recorder.state!=='inactive')recorder.stop();};
   try{
+    let blob;
+    if(activeTemplate==='flip'){
+      blob=await exportStandardMp4(()=>cancelled);
+      if(cancelled||!blob){showExportDialog('导出已取消','可以关闭此窗口后重新导出。');return;}
+    }else{
     if(activeTemplate==='smart')await prepareSmartExport();else await prepareTemplateExport();if(cancelled){showExportDialog('导出已取消','可以关闭此窗口后重新导出。');return;}time=0;draw(0);syncTime();stream=canvas.captureStream((activeTemplate==='body'||activeTemplate==='flip')?30:activeTemplate==='plain'?24:25);
     recorder=new MediaRecorder(stream,{mimeType:supportedMime,videoBitsPerSecond:12000000});
     const chunks=[];
@@ -542,8 +549,10 @@ async function exportVideo(){
     });
     if(cancelled){showExportDialog('导出已取消','请保持页面在前台，再重新导出。');notice('导出已取消。');return;}
     if(!chunks.length)throw new Error('未生成视频数据，请重试。');
-    const blob=new Blob(chunks,{type:recorder.mimeType||supportedMime});if(videoURL)URL.revokeObjectURL(videoURL);videoURL=URL.createObjectURL(blob);
-    $('download').href=videoURL;$('download').download=`${activeTemplate==='flip'?'浅色翻页轮播':activeTemplate==='smart'?'课程卡片轮播2':activeTemplate==='body'?'左右移轴对比':activeTemplate==='buyer'?'买家秀轮播':activeTemplate==='pain'?'痛点轮播':activeTemplate==='plain'?'长图横向滚动':'课程卡片轮播1'}-${canvas.width}x${canvas.height}.${extension}`;$('download').textContent=`下载 ${extension.toUpperCase()} 视频 · ${(blob.size/1024/1024).toFixed(1)} MB`;$('download').hidden=false;
+    blob=new Blob(chunks,{type:recorder.mimeType||supportedMime});
+    }
+    if(videoURL)URL.revokeObjectURL(videoURL);videoURL=URL.createObjectURL(blob);
+    $('download').href=videoURL;$('download').download=`${activeTemplate==='flip'?'浅色翻页轮播':activeTemplate==='smart'?'课程卡片轮播2':activeTemplate==='body'?'左右移轴对比':activeTemplate==='buyer'?'买家秀轮播':activeTemplate==='pain'?'痛点轮播':activeTemplate==='plain'?'长图横向滚动':'课程卡片轮播1'}-${canvas.width}x${canvas.height}.${outputExtension}`;$('download').textContent=`下载 ${outputExtension.toUpperCase()} 视频 · ${(blob.size/1024/1024).toFixed(1)} MB`;$('download').hidden=false;
     showExportDialog('视频已生成','已发起自动下载。如未开始，请点击下方按钮；文件可在浏览器下载记录中查看。');$('download').click();$('download').textContent=$('download').textContent.replace('下载 ','再次下载 ');notice('视频已生成，已发起下载。');
   }catch(e){exportProblem('导出未完成：'+e.message+' 请降低尺寸后重试。');}
   finally{cancelAnimationFrame(raf);clearTimeout(timer);if(recorder&&recorder.state!=='inactive')recorder.stop();if(stream)stream.getTracks().forEach(t=>t.stop());exporting=false;cancelRecording=null;document.body.classList.remove('exporting');$('exportState').hidden=true;$('closeExport').hidden=false;disableIds.forEach(id=>$(id).disabled=false);editorControls.forEach(x=>x.el.disabled=x.disabled);time=0;draw(0);syncTime();}
