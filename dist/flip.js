@@ -119,20 +119,22 @@ function drawFlip(t){
   ctx.restore();
   const ui=flipSample(flipMotion.ui,at);
   const accentOpacity=(settings.flipAccentOpacity??100)/100;
-  ctx.fillStyle='rgba(255,255,255,.16)';ctx.fillRect(2,1335,1349,3);ctx.save();ctx.globalAlpha*=accentOpacity;ctx.fillStyle=settings.flipAccent||'#ebb300';ctx.fillRect(ui[0],ui[1],180,8);ctx.restore();
+  ctx.fillStyle='rgba(255,255,255,.16)';ctx.fillRect(2,1335,1349,3);ctx.fillStyle=settings.flipAccent||'#ebb300';ctx.fillRect(ui[0],ui[1],180,8);
   const labelImages=flipLabelImages();
   const xs=[8.5,423.5,748,1113],widths=[251,186,266,228];
   flipCards.forEach((card,i)=>{
     ctx.save();ctx.globalAlpha=ui[i+2]/100;
     if(['category','title','body'].every(k=>card[k]===flipCopy[i][k])){
       const im=labelImages[i],[x,y]=flipMotion.labelBoxes[i],header=44;
-      ctx.save();ctx.globalAlpha*=accentOpacity;ctx.drawImage(im,0,0,im.width,header,x,y,im.width,header);ctx.restore();
+      // The original two-character category ends before x=60 in every label.
+      ctx.save();ctx.globalAlpha*=accentOpacity;ctx.drawImage(im,0,0,60,header,x,y,60,header);ctx.restore();
+      ctx.drawImage(im,60,0,im.width-60,header,x+60,y,im.width-60,header);
       ctx.drawImage(im,0,header,im.width,im.height-header,x,y+header,im.width,im.height-header);
     }
     else{
       const x=xs[i],w=widths[i];ctx.textBaseline='top';ctx.font='26px "Microsoft YaHei",sans-serif';ctx.fillStyle=settings.flipAccent||'#ebb300';
       const cat=card.category,tail=' | '+card.title,total=ctx.measureText(cat+tail).width,scale=Math.min(1,w/Math.max(1,total));
-      ctx.save();ctx.translate(x,1375);ctx.scale(scale,1);ctx.globalAlpha*=.7*accentOpacity;ctx.fillText(cat,0,0);ctx.globalAlpha=ui[i+2]/100*accentOpacity;ctx.fillText(tail,ctx.measureText(cat).width,0);ctx.restore();
+      ctx.save();ctx.translate(x,1375);ctx.scale(scale,1);const lead=Array.from(cat).slice(0,2).join(''),rest=Array.from(cat).slice(2).join('');ctx.globalAlpha*=.7*accentOpacity;ctx.fillText(lead,0,0);ctx.globalAlpha=ui[i+2]/100*.7;ctx.fillText(rest,ctx.measureText(lead).width,0);ctx.globalAlpha=ui[i+2]/100;ctx.fillText(tail,ctx.measureText(cat).width,0);ctx.restore();
       ctx.fillStyle='#010101';ctx.font='38px "Microsoft YaHei",sans-serif';const lines=card.body.split(/\r?\n/).slice(0,2);lines.forEach((line,j)=>ctx.fillText(line,x,1430+j*46,w));
     }ctx.restore();
   });
@@ -147,7 +149,7 @@ async function openFlipProject(p){
   const s=p.settings,valid=c=>c&&validMediaSource(c)&&typeof c.name==='string'&&c.name.length<=200;
   if(p.version!==1||!s||!validFrameSettings(s)||!Number.isFinite(s.duration)||s.duration<3||s.duration>18||!/^#[0-9a-f]{6}$/i.test(s.background)||!Array.isArray(p.cards)||p.cards.length!==4||!p.cards.every(c=>valid(c)&&[['category',6],['title',20],['body',48]].every(([k,n])=>typeof c[k]==='string'&&c[k].length<=n))||(p.backgroundImage!=null&&(!valid(p.backgroundImage)||!/^data:image\//.test(p.backgroundImage.src))))throw Error('翻页模板文件或素材无效。');
   if(s.flipAccent!==undefined&&(typeof s.flipAccent!=='string'||!/^#[0-9a-f]{6}$/i.test(s.flipAccent)))throw Error('强调色必须是 6 位十六进制色值。');
-  if(s.flipAccentOpacity!==undefined&&(!Number.isFinite(s.flipAccentOpacity)||s.flipAccentOpacity<0||s.flipAccentOpacity>100))throw Error('强调色透明度必须在 0%–100% 之间。');
+  if(s.flipAccentOpacity!==undefined&&(!Number.isFinite(s.flipAccentOpacity)||s.flipAccentOpacity<0||s.flipAccentOpacity>100))throw Error('分类文字透明度必须在 0%–100% 之间。');
   await ensureTemplateAssets('flip');
   const [cards,bg]=await Promise.all([Promise.all(p.cards.map(async c=>({...c,image:await mediaFrom(c.src),original:c.original===true&&c.kind!=='video'}))),p.backgroundImage?imageFrom(p.backgroundImage.src):null]);
   switchTemplate('flip');flipCards=cards;settings={...flipDefaultSettings(),...frameExtras(s),size:s.size,duration:s.duration,background:s.background,flipAccent:(s.flipAccent||'#ebb300').toLowerCase(),flipAccentOpacity:s.flipAccentOpacity??100};customBackground=p.backgroundImage||null;backgroundImage=bg;time=0;flipSurfaces.forEach(b=>b.key=null);renderFlip();syncBackgroundUI();syncSettings();notice('翻页模板已打开。');
