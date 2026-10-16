@@ -1,6 +1,27 @@
 'use strict';
 let frameExportActive=false;
 
+async function exportGif(isCancelled,options){
+  const {GIFEncoder,quantize,applyPalette}=await import('./vendor/gifenc-1.0.3.mjs');
+  const gif=GIFEncoder(),w=canvas.width,h=canvas.height,fps=options.fps,count=Math.ceil(settings.duration*fps);
+  frameExportActive=true;
+  try{
+    for(let n=0;n<count;n++){
+      if(isCancelled())return null;
+      time=n/fps;await seekExportMedia(time);draw(time);syncTime();
+      const rgba=ctx.getImageData(0,0,w,h).data;
+      const palette=quantize(rgba,options.colors,{format:'rgb565'});
+      const indexed=applyPalette(rgba,palette,'rgb565');
+      const delay=(Math.round(Math.min((n+1)/fps,settings.duration)*100)-Math.round(n/fps*100))*10;
+      gif.writeFrame(indexed,w,h,{palette,delay,repeat:0,dispose:1});
+      const pc=Math.round((n+1)/count*100);$('exportProgress').value=pc;$('exportMessage').textContent=`正在生成 GIF · ${pc}%`;
+      await new Promise(resolve=>setTimeout(resolve,0));
+    }
+    if(isCancelled())return null;
+    gif.finish();return new Blob([gif.bytesView()],{type:'image/gif'});
+  }finally{frameExportActive=false;pauseTemplateMedia();if(activeTemplate==='smart')pauseSmart();}
+}
+
 // Convert sRGB bytes to BT.709 limited-range I420. Set matching metadata on
 // both the encoder input and MP4, instead of merely relabelling full-range data.
 function limitedI420(rgba,width,height){

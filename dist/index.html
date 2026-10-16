@@ -5,7 +5,7 @@
   <title>视频模板 · 替换素材，生成动画</title>
   <meta name="description" content="选择课程卡片轮播或长图横向滚动模板，替换素材并导出视频。">
   <link rel="icon" href="favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="style.css?v=2">
-  <script src="ae-motion.js" defer></script><script src="plain-motion.js" defer></script><script src="pain-motion.js" defer></script><script src="buyer-motion.js" defer></script><script src="body-motion.js" defer></script><script src="smart-motion.js" defer></script><script src="smart.js?v=7" defer></script><script src="flip.js?v=9" defer></script><script src="export-standard.js?v=2" defer></script><script src="app.js?v=10" defer></script>
+  <script src="ae-motion.js" defer></script><script src="plain-motion.js" defer></script><script src="pain-motion.js" defer></script><script src="buyer-motion.js" defer></script><script src="body-motion.js" defer></script><script src="smart-motion.js" defer></script><script src="smart.js?v=7" defer></script><script src="flip.js?v=9" defer></script><script src="export-standard.js?v=3" defer></script><script src="app.js?v=11" defer></script>
 </head>
 <body>
   <header class="topbar"><a class="brand" href="./"><span class="brand-icon"><img src="assets/brand-logo.png" alt="品牌 Logo"></span><span>视频模板<small>COURSE MOTION STUDIO</small></span></a><label class="template-picker">模板<select id="templateMode"><option value="cards">课程卡片轮播1</option><option value="plain">长图横向滚动</option><option value="pain">痛点轮播</option><option value="buyer">买家秀轮播</option><option value="body">左右移轴对比</option><option value="smart">课程卡片轮播2</option><option value="flip">浅色翻页轮播</option></select></label><div class="top-actions"><button id="loadProject">打开模板</button><button id="saveProject">保存模板</button><button class="primary" id="exportTop">导出视频</button></div></header>
@@ -39,13 +39,13 @@
     <p id="exportDetail" role="status" aria-live="polite"></p>
     <div id="exportOptions" class="export-options" hidden>
       <div class="export-video-heading"><span>视频设置</span><span class="export-badge">仅视频</span></div>
-      <label class="export-option">格式<select id="exportFormat"><option value="mp4">MP4 · H.264（推荐）</option><option value="mov">MOV · H.264</option><option value="webm">WebM · VP9</option></select></label>
+      <label class="export-option">格式<select id="exportFormat"><option value="mp4">MP4 · H.264（推荐）</option><option value="mov">MOV · H.264</option><option value="webm">WebM · VP9</option><option value="gif">GIF · 循环动图</option></select></label>
       <label class="export-option">分辨率<select id="exportResolution"><option value="0">当前画布 · 原始尺寸</option><option value="720">720P · 流畅</option><option value="1080">1080P · 高清</option><option value="1440">1440P · 超清</option><option value="2160">2160P · 4K</option></select></label>
       <p id="exportDimensions" class="export-dimensions"></p>
       <label class="export-option">帧率<select id="exportFps"><option value="24">24 FPS</option><option value="25">25 FPS</option><option value="30">30 FPS（推荐）</option><option value="50">50 FPS</option><option value="60">60 FPS</option></select></label>
       <label class="export-option">画质<select id="exportQuality"><option value="0.6">较小文件</option><option value="1" selected>推荐</option><option value="1.5">更高画质</option></select></label>
       <div class="export-size-card"><span>预计文件大小</span><strong id="exportEstimate"></strong><p id="exportSpecs"></p></div>
-      <p class="export-note">大小为码率估算，实际以导出结果为准。分辨率按短边缩放，最长边不超过 4096 像素；保留当前比例、内容缩放和背景。</p>
+      <p id="exportNote" class="export-note">大小为码率估算，实际以导出结果为准。分辨率按短边缩放，最长边不超过 4096 像素；保留当前比例、内容缩放和背景。</p>
     </div>
     <button id="startExport" class="primary export-start" hidden>开始导出</button>
     <div class="export-state" id="exportState" hidden><div><strong id="exportMessage">正在准备…</strong><button id="cancelExport">取消导出</button></div><progress id="exportProgress" max="100" value="0"></progress><p>请保持此页面在前台，直到完成。</p></div>

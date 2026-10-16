@@ -493,7 +493,7 @@ $('resetContentScale').onclick=()=>{settings.contentScale=100;syncSettings();};
 
 function syncSettings(){
   invalidateVideo();
-  $('formatLabel').textContent='MP4 / MOV / WebM';$('formatHint').textContent='选择格式、帧率和清晰度，查看预计大小后导出无声视频。';
+  $('formatLabel').textContent='MP4 / MOV / WebM / GIF';$('formatHint').textContent='选择格式、帧率和清晰度，查看预计大小后导出无声视频。';
   syncFrameUI();if(activeTemplate==='flip')syncFlipColor();
   ['duration','scale','background'].forEach(k=>$(k).value=settings[k]);$('stack').checked=settings.stack;
   [canvas.width,canvas.height]=settings.size.split(',').map(Number);
@@ -526,19 +526,22 @@ function exportChoices(){
   const [baseW,baseH]=settings.size.split(',').map(Number),edge=Number($('exportResolution').value),ratio=edge?Math.min(edge/Math.min(baseW,baseH),4096/Math.max(baseW,baseH)):1;
   const width=Math.max(2,Math.round(baseW*ratio/2)*2),height=Math.max(2,Math.round(baseH*ratio/2)*2),fps=Number($('exportFps').value),format=$('exportFormat').value;
   const bitrate=Math.round(Math.max(2000000,Math.min(80000000,width*height*fps*.12))*Number($('exportQuality').value));
-  return {width,height,fps,format,bitrate};
+  return {width,height,fps,format,bitrate,colors:Number($('exportQuality').value)<1?64:Number($('exportQuality').value)>1?256:128};
 }
 function updateExportEstimate(){
   const o=exportChoices();$('exportDimensions').textContent=`${o.width} × ${o.height} · 保持当前画面比例`;
   $('exportEstimate').textContent=`约 ${(o.bitrate*settings.duration/8/1024/1024).toFixed(1)} MB`;
+  $('exportNote').textContent=o.format==='gif'?'GIF 循环播放。文件大小取决于画面细节与颜色，导出后显示实际大小；保留当前比例、内容缩放和背景。':'大小为码率估算，实际以导出结果为准。分辨率按短边缩放，最长边不超过 4096 像素；保留当前比例、内容缩放和背景。';
+  if(o.format==='gif'){ $('exportEstimate').textContent='导出后显示实际大小';$('exportSpecs').textContent=`GIF · ${o.fps} FPS · ${o.colors} 色 · ${settings.duration.toFixed(2)} 秒 · 循环播放`;return;}
   $('exportSpecs').textContent=`${o.format.toUpperCase()} · ${o.fps} FPS · ${(o.bitrate/1000000).toFixed(1)} Mbps · ${settings.duration.toFixed(2)} 秒`;
 }
 function openExportSettings(){
   if(exporting)return;setPlaying(false);$('download').hidden=true;$('exportState').hidden=true;$('exportOptions').hidden=false;$('startExport').hidden=false;$('closeExport').hidden=false;
-  $('exportFps').value=['flip','body','smart'].includes(activeTemplate)?'30':activeTemplate==='plain'?'24':'25';
+  if($('exportFormat').value!=='gif')$('exportFps').value=['flip','body','smart'].includes(activeTemplate)?'30':activeTemplate==='plain'?'24':'25';
   updateExportEstimate();showExportDialog('导出视频','选择导出参数，生成完整一轮动画。');
 }
 ['exportFormat','exportFps','exportResolution','exportQuality'].forEach(id=>$(id).onchange=updateExportEstimate);
+$('exportFormat').onchange=()=>{const gif=$('exportFormat').value==='gif';$('exportFps').innerHTML=(gif?[10,15,20,25,50]:[24,25,30,50,60]).map(f=>`<option value="${f}">${f} FPS</option>`).join('');$('exportFps').value=gif?'20':'30';if(gif)$('exportResolution').value='720';updateExportEstimate();};
 $('startExport').onclick=()=>exportVideo();
 function showExportDialog(title,detail){
   $('exportTitle').textContent=title;$('exportDetail').textContent=detail;
@@ -548,7 +551,7 @@ function exportProblem(message){$('download').hidden=true;showExportDialog('暂�
 async function exportVideo(){
   if(exporting)return;
   if(activeTemplate==='buyer'&&buyerCards.some(c=>!c.image)){exportProblem('请先补齐当前所有画面的素材，再导出视频。');return;}
-  if(typeof VideoEncoder==='undefined'||typeof VideoFrame==='undefined'){exportProblem('当前浏览器不支持视频导出，请使用最新版 Chrome 或 Edge 打开此页面。');return;}
+  if($('exportFormat').value!=='gif'&&(typeof VideoEncoder==='undefined'||typeof VideoFrame==='undefined')){exportProblem('当前浏览器不支持视频导出，请使用最新版 Chrome 或 Edge 打开此页面。');return;}
   if(activeTemplate==='flip'?(!templateReady.has('flip')||flipCards.some(c=>!c.image)):activeTemplate==='smart'?!smartReady:activeTemplate==='body'?(bodyCards.some(c=>!c.image)||bodyUi.length!==4):activeTemplate==='plain'?!longImage:activeTemplate==='pain'?(!painIcons||painCards.some(c=>!c.image)):cards.some(c=>!c.image)){exportProblem('素材仍在加载，请稍后重新导出。');return;}
   const outputOptions=exportChoices(),originalCanvas=[canvas.width,canvas.height];
   $('exportOptions').hidden=true;$('startExport').hidden=true;
@@ -560,11 +563,11 @@ async function exportVideo(){
   cancelRecording=()=>{cancelled=true;};
   try{
     canvas.width=outputOptions.width;canvas.height=outputOptions.height;
-    const blob=await exportStandardMp4(()=>cancelled,outputOptions);
+    const blob=await (outputOptions.format==='gif'?exportGif:exportStandardMp4)(()=>cancelled,outputOptions);
     if(cancelled||!blob){showExportDialog('导出已取消','可以关闭窗口，调整参数后重新导出。');return;}
     if(videoURL)URL.revokeObjectURL(videoURL);videoURL=URL.createObjectURL(blob);
-    $('download').href=videoURL;$('download').download=`${activeTemplate==='flip'?'浅色翻页轮播':activeTemplate==='smart'?'课程卡片轮播2':activeTemplate==='body'?'左右移轴对比':activeTemplate==='buyer'?'买家秀轮播':activeTemplate==='pain'?'痛点轮播':activeTemplate==='plain'?'长图横向滚动':'课程卡片轮播1'}-${canvas.width}x${canvas.height}.${outputExtension}`;$('download').textContent=`下载 ${outputExtension.toUpperCase()} 视频 · ${(blob.size/1024/1024).toFixed(1)} MB`;$('download').hidden=false;
-    showExportDialog('导出完成',`${outputOptions.width} × ${outputOptions.height} · ${outputOptions.fps} FPS · 实际大小 ${(blob.size/1024/1024).toFixed(2)} MB。已开始下载，也可点击下方按钮再次保存。`);$('download').click();$('download').textContent=$('download').textContent.replace('下载 ','再次下载 ');notice('视频已生成，已发起下载。');
+    $('download').href=videoURL;$('download').download=`${activeTemplate==='flip'?'浅色翻页轮播':activeTemplate==='smart'?'课程卡片轮播2':activeTemplate==='body'?'左右移轴对比':activeTemplate==='buyer'?'买家秀轮播':activeTemplate==='pain'?'痛点轮播':activeTemplate==='plain'?'长图横向滚动':'课程卡片轮播1'}-${canvas.width}x${canvas.height}.${outputExtension}`;$('download').textContent=`下载 ${outputExtension.toUpperCase()} ${outputExtension==='gif'?'动图':'视频'} · ${(blob.size/1024/1024).toFixed(1)} MB`;$('download').hidden=false;
+    showExportDialog('导出完成',`${outputOptions.width} × ${outputOptions.height} · ${outputOptions.fps} FPS · 实际大小 ${(blob.size/1024/1024).toFixed(2)} MB。已开始下载，也可点击下方按钮再次保存。`);$('download').click();$('download').textContent=$('download').textContent.replace('下载 ','再次下载 ');notice(outputExtension==='gif'?'GIF 已生成，已发起下载。':'视频已生成，已发起下载。');
   }catch(e){exportProblem('导出未完成：'+e.message+' 请降低尺寸后重试。');}
   finally{exporting=false;cancelRecording=null;document.body.classList.remove('exporting');$('exportState').hidden=true;$('closeExport').hidden=false;disableIds.forEach(id=>$(id).disabled=false);editorControls.forEach(x=>x.el.disabled=x.disabled);[canvas.width,canvas.height]=originalCanvas;updatePreviewZoom();time=0;draw(0);syncTime();}
 }
@@ -576,7 +579,7 @@ $('batchUpload').onclick=()=>$('batchInput').click();$('batchInput').onchange=as
 $('saveProject').onclick=saveProject;$('loadProject').onclick=()=>$('projectInput').click();$('projectInput').onchange=async e=>{const file=e.target.files[0];e.target.value='';if(!file)return;try{if(file.size>750*1024*1024)throw new Error('模板文件过大，请选择 750 MB 以内的文件。');const p=JSON.parse(await file.text());if(p.type==='page-flip-light'){await openFlipProject(p);return;}if(p.type==='smart-carousel'){await openSmartProject(p);return;}if(p.type==='body-compare'){await openBodyProject(p);return;}if(p.type==='buyer-carousel'){await openBuyerProject(p);return;}if(p.type==='pain-carousel'){await openPainProject(p);return;}if(p.type==='long-scroll'){await openLongProject(p);return;}validateProject(p);await ensureTemplateAssets('cards');const ready=await Promise.all(p.cards.map(async c=>({...c,image:await mediaFrom(c.src)})));const trailImage=p.trail?await imageFrom(p.trail.src):defaultStackImage;const loadedBackground=p.backgroundImage?await imageFrom(p.backgroundImage.src):null;switchTemplate('cards');cards=ready;settings=p.settings;customBackground=p.backgroundImage||null;backgroundImage=loadedBackground;syncBackgroundUI();customStack=p.trail||null;stackImage=trailImage;syncStackUI();time=0;renderCards();syncSettings();notice('模板已打开，可以继续替换素材。');}catch(e){notice('打开失败：'+e.message);}};
 $('closeExport').onclick=()=>$('exportDialog').close();$('exportDialog').addEventListener('cancel',e=>{if(exporting){e.preventDefault();cancelRecording?.();}});
 $('export').onclick=openExportSettings;$('exportTop').onclick=openExportSettings;$('cancelExport').onclick=()=>cancelRecording?.();document.addEventListener('visibilitychange',()=>{if(document.hidden&&exporting)cancelRecording?.();});
-  $('formatLabel').textContent='MP4 / MOV / WebM';$('formatHint').textContent='选择格式、帧率和清晰度，查看预计大小后导出无声视频。';
+  $('formatLabel').textContent='MP4 / MOV / WebM / GIF';$('formatHint').textContent='选择格式、帧率和清晰度，查看预计大小后导出无声视频。';
 renderCards();syncSettings();loadSelectedTemplate();
 if(!matchMedia('(prefers-reduced-motion: reduce)').matches)setPlaying(true);
 requestAnimationFrame(loop);
