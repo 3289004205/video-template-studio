@@ -120,6 +120,20 @@ function paintFlipLayer(surface,v,q=ctx,weight=1){
   else{const rows=382;for(let row=0;row<rows;row++){const top=row*764/rows,bottom=(row+1)*764/rows,a=line(top),b=line(bottom),mid=line((top+bottom)/2),height=b[1]-a[1];if(height>0)q.drawImage(surface,0,top,1352,bottom-top,mid[0],a[1],mid[2],height+.3);}}
   q.restore();
 }
+// Keep the two outside blocks fixed and distribute the actual text bounds evenly.
+function flipTextLayout(){
+  const limits=[385,294,335,230],origins=flipCards.map((card,i)=>['category','title','body'].every(k=>card[k]===flipCopy[i][k])?flipMotion.labelBoxes[i][0]:[8.5,423.5,748,1113][i]);
+  ctx.save();
+  const widths=flipCards.map((card,i)=>{
+    if(['category','title','body'].every(k=>card[k]===flipCopy[i][k]))return flipLabels[i].width;
+    ctx.font='26px "Microsoft YaHei",sans-serif';const header=ctx.measureText(card.category+' | '+card.title).width;
+    ctx.font='38px "Microsoft YaHei",sans-serif';const body=Math.max(0,...card.body.split(/\r?\n/).slice(0,2).map(line=>ctx.measureText(line).width));
+    return Math.min(limits[i],Math.max(header,body));
+  });ctx.restore();
+  const gap=(origins[3]-origins[0]-widths[0]-widths[1]-widths[2])/3;
+  const xs=[origins[0]];for(let i=1;i<4;i++)xs.push(xs[i-1]+widths[i-1]+gap);
+  xs[3]=origins[3];return {offsets:xs.map((x,i)=>x-origins[i]),gap};
+}
 function drawFlip(t){
   if(!flipMotion)return;
   const at=Math.min(9.9999,Math.max(0,t/settings.duration*10)),fit=Math.min(canvas.width/1500,canvas.height/1508);
@@ -140,13 +154,16 @@ function drawFlip(t){
     }else paintFlipLayer(surface,v);
   }
   ctx.restore();
-  const ui=flipSample(flipMotion.ui,at);
+  const ui=flipSample(flipMotion.ui,at),layout=flipTextLayout(),stops=[3,420,755,1113];
+  let segment=0;while(segment<2&&ui[0]>stops[segment+1])segment++;
+  const blend=Math.max(0,Math.min(1,(ui[0]-stops[segment])/(stops[segment+1]-stops[segment])));
+  ui[0]+=layout.offsets[segment]*(1-blend)+layout.offsets[segment+1]*blend;
   const accentOpacity=(settings.flipAccentOpacity??100)/100;
   ctx.save();ctx.globalAlpha*=.16;ctx.fillStyle=settings.flipLineColor||'#ffffff';ctx.fillRect(2,1335,1349,3);ctx.restore();ctx.fillStyle=settings.flipAccent||'#ebb300';ctx.fillRect(ui[0],ui[1],180,8);
   const labelImages=flipLabelImages();
   const xs=[8.5,423.5,748,1113],widths=[385,294,335,230];
   flipCards.forEach((card,i)=>{
-    ctx.save();ctx.globalAlpha=ui[i+2]/100;
+    ctx.save();ctx.translate(layout.offsets[i],0);ctx.globalAlpha=ui[i+2]/100;
     if(['category','title','body'].every(k=>card[k]===flipCopy[i][k])){
       const im=labelImages[i],[x,y]=flipMotion.labelBoxes[i],header=44;
       // The original two-character category ends before x=60 in every label.
