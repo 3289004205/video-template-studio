@@ -144,7 +144,7 @@ function drawFlip(t){
   const accentOpacity=(settings.flipAccentOpacity??100)/100;
   ctx.save();ctx.globalAlpha*=.16;ctx.fillStyle=settings.flipLineColor||'#ffffff';ctx.fillRect(2,1335,1349,3);ctx.restore();ctx.fillStyle=settings.flipAccent||'#ebb300';ctx.fillRect(ui[0],ui[1],180,8);
   const labelImages=flipLabelImages();
-  const xs=[8.5,423.5,748,1113],widths=[251,186,266,228];
+  const xs=[8.5,423.5,748,1113],widths=[385,294,335,230];
   flipCards.forEach((card,i)=>{
     ctx.save();ctx.globalAlpha=ui[i+2]/100;
     if(['category','title','body'].every(k=>card[k]===flipCopy[i][k])){
@@ -157,8 +157,10 @@ function drawFlip(t){
     else{
       const x=xs[i],w=widths[i];ctx.textBaseline='top';ctx.font='26px "Microsoft YaHei",sans-serif';ctx.fillStyle=settings.flipAccent||'#ebb300';
       const cat=card.category,tail=' | '+card.title,total=ctx.measureText(cat+tail).width,scale=Math.min(1,w/Math.max(1,total));
-      ctx.save();ctx.translate(x,1375);ctx.scale(scale,1);const lead=Array.from(cat).slice(0,2).join(''),rest=Array.from(cat).slice(2).join('');ctx.globalAlpha*=.7*accentOpacity;ctx.fillText(lead,0,0);ctx.globalAlpha=ui[i+2]/100*.7;ctx.fillText(rest,ctx.measureText(lead).width,0);ctx.globalAlpha=ui[i+2]/100;ctx.fillText(tail,ctx.measureText(cat).width,0);ctx.restore();
-      ctx.fillStyle=settings.flipBodyColor||'#010101';ctx.font='38px "Microsoft YaHei",sans-serif';const lines=card.body.split(/\r?\n/).slice(0,2);lines.forEach((line,j)=>ctx.fillText(line,x,1430+j*46,w));
+      ctx.save();ctx.translate(x,1375);ctx.font=`${26*scale}px "Microsoft YaHei",sans-serif`;const lead=Array.from(cat).slice(0,2).join(''),rest=Array.from(cat).slice(2).join('');ctx.globalAlpha*=.7*accentOpacity;ctx.fillText(lead,0,0);ctx.globalAlpha=ui[i+2]/100*.7;ctx.fillText(rest,ctx.measureText(lead).width,0);ctx.globalAlpha=ui[i+2]/100;ctx.fillText(tail,ctx.measureText(cat).width,0);ctx.restore();
+      ctx.fillStyle=settings.flipBodyColor||'#010101';ctx.font='38px "Microsoft YaHei",sans-serif';const lines=card.body.split(/\r?\n/).slice(0,2),widest=Math.max(1,...lines.map(line=>ctx.measureText(line).width));
+      // Fit both lines with one font size; maxWidth would distort glyphs horizontally.
+      ctx.font=`${38*Math.min(1,w/widest)}px "Microsoft YaHei",sans-serif`;lines.forEach((line,j)=>ctx.fillText(line,x,1430+j*46));
     }ctx.restore();
   });
   ctx.restore();
