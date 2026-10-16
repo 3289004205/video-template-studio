@@ -18,8 +18,10 @@ function limitedI420(rgba,width,height){
   return out;
 }
 async function seekExportMedia(t){
-  await Promise.all(activeMediaVideos().map(v=>new Promise((resolve,reject)=>{
-    v.pause();const target=t%v.duration;
+  const videos=activeTemplate==='smart'?smartCards.filter(c=>c.kind==='video').map(c=>c.media):activeMediaVideos();
+  const mediaTime=activeTemplate==='smart'?Math.min(10.4399,t/settings.duration*10.44):t;
+  await Promise.all(videos.map(v=>new Promise((resolve,reject)=>{
+    v.pause();const target=mediaTime%v.duration;
     if(!v.seeking&&Math.abs(v.currentTime-target)<.00001){resolve();return;}
     const cleanup=()=>{clearTimeout(timer);v.removeEventListener('seeked',done);v.removeEventListener('error',failed);};
     const done=()=>{if(v.seeking)return;cleanup();resolve();};
@@ -27,12 +29,13 @@ async function seekExportMedia(t){
     const timer=setTimeout(failed,10000);v.addEventListener('seeked',done);v.addEventListener('error',failed);v.currentTime=target;
   })));
 }
-async function exportStandardMp4(isCancelled){
+async function exportStandardMp4(isCancelled,options){
   if(typeof VideoEncoder==='undefined'||typeof VideoFrame==='undefined')throw Error('请使用最新版 Chrome 或 Edge 导出兼容 MP4。');
-  const {Output,Mp4OutputFormat,BufferTarget,VideoSampleSource,VideoSample,Quality}=await import('./vendor/mediabunny-1.61.4.mjs');
-  const target=new BufferTarget(),output=new Output({format:new Mp4OutputFormat({fastStart:'in-memory'}),target});
-  const source=new VideoSampleSource({codec:'avc',quality:new Quality({bitrate:12000000}),keyFrameInterval:2});
-  const fps=30,count=Math.ceil(settings.duration*fps),w=canvas.width,h=canvas.height;
+  const {Output,Mp4OutputFormat,MovOutputFormat,WebMOutputFormat,BufferTarget,VideoSampleSource,VideoSample,Quality}=await import('./vendor/mediabunny-1.61.4.mjs');
+  const format=options.format==='webm'?new WebMOutputFormat():options.format==='mov'?new MovOutputFormat({fastStart:'in-memory'}):new Mp4OutputFormat({fastStart:'in-memory'});
+  const target=new BufferTarget(),output=new Output({format,target});
+  const source=new VideoSampleSource({codec:options.format==='webm'?'vp9':'avc',quality:new Quality({bitrate:options.bitrate}),keyFrameInterval:2});
+  const fps=options.fps,count=Math.ceil(settings.duration*fps),w=canvas.width,h=canvas.height;
   output.addVideoTrack(source,{frameRate:fps});frameExportActive=true;
   try{
     await output.start();
@@ -49,7 +52,7 @@ async function exportStandardMp4(isCancelled){
     }
     await output.finalize();
     if(isCancelled())return null;
-    return new Blob([target.buffer],{type:'video/mp4'});
+    return new Blob([target.buffer],{type:options.format==='webm'?'video/webm':options.format==='mov'?'video/quicktime':'video/mp4'});
   }catch(e){if(output.state!=='finalized'&&output.state!=='canceled')await output.cancel();throw e;}
-  finally{frameExportActive=false;pauseTemplateMedia();}
+  finally{frameExportActive=false;pauseTemplateMedia();if(activeTemplate==='smart')pauseSmart();}
 }
