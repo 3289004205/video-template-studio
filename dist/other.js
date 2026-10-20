@@ -14,15 +14,7 @@ function otherCleanOptions(value={}){
   return result;
 }
 function otherDefaultSettings(){return {size:'1080,1080',duration:Math.max(3,Math.min(30,otherPresetInfo()?.duration||16)),scale:100,contentScale:100,background:'#101014',stack:false};}
-function otherPlaceholderCards(count){
-  return Array.from({length:Math.max(1,Math.min(OTHER_LIMIT,count||6))},(_,i)=>{
-    const image=document.createElement('canvas');image.width=480;image.height=640;const q=image.getContext('2d'),hue=(i*43+215)%360;
-    const gradient=q.createLinearGradient(0,0,480,640);gradient.addColorStop(0,`hsl(${hue} 65% 65%)`);gradient.addColorStop(1,`hsl(${(hue+65)%360} 55% 25%)`);q.fillStyle=gradient;q.fillRect(0,0,480,640);
-    q.fillStyle='#ffffff15';q.beginPath();q.arc(385,175,225,0,Math.PI*2);q.fill();q.fillStyle='#ffffff20';q.beginPath();q.arc(100,480,180,0,Math.PI*2);q.fill();
-    q.fillStyle='#ffffffcc';q.font='500 18px sans-serif';q.fillText('MOTION / STUDIO',32,50);q.fillStyle='#fff';q.font='600 112px sans-serif';q.fillText(String(i+1).padStart(2,'0'),28,556);q.font='18px sans-serif';q.fillText('YOUR NEXT GREAT STORY',32,600);
-    return {image,src:image.toDataURL('image/png'),name:`示例素材 ${i+1}`,title:`画面 ${String(i+1).padStart(2,'0')}`,kind:'image',placeholder:true};
-  });
-}
+function otherPlaceholderCards(count){return otherDemoCards(Math.max(1,Math.min(OTHER_LIMIT,count||6)));}
 function otherChanged(message='',render=true){
   invalidateVideo();if(render)renderOther();time=0;draw(time);syncTime();if(message)notice(message);
 }
@@ -30,6 +22,7 @@ async function ensureOther(){
   if(otherIsReady)return;if(otherLoad)return otherLoad;
   otherLoad=(async()=>{
     const first=otherPresetInfo();if(!first)throw Error('效果目录尚未加载。');
+    await ensureOtherDemoImages();
     otherPreset=first.id;otherOptions=otherCleanOptions(first.defaults);
     otherCards=otherPlaceholderCards(first.slots);otherIsReady=true;renderOther();
   })().catch(e=>{otherLoad=null;throw e;});return otherLoad;
@@ -73,6 +66,7 @@ async function otherImportFiles(files,target=null,replace=false){
 }
 function renderOther(){
   const root=$('otherMaterials');if(!root)return;root.replaceChildren();
+  if(!otherIsReady){root.append(otherNode('p','hint','正在加载示例图片…'));return;}
   const heading=otherNode('div','panel-heading'),headingLeft=otherNode('div');headingLeft.append(otherNode('span','step','01'),otherNode('h2','','素材与效果'));heading.append(headingLeft);root.append(heading);
   const info=otherPresetInfo();root.append(otherNode('p','hint',`${info?.name||'选择效果'} · 参考 Animos 动效重建，可替换图片/视频。支持 1–30 个素材。`));
   const actions=otherNode('div','pain-actions');actions.append(otherNode('span','footnote',`${otherCards.length} 个素材${otherBusy?' · 正在读取…':''}`));
