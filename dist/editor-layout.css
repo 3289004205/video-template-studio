@@ -23,3 +23,12 @@ main#studioMain{display:grid;grid-template-columns:240px minmax(260px,1fr) 340px
 @media(max-width:900px){.editor .quick-frame{padding:16px 12px}.quick-frame-ratios{gap:1px;padding:3px}.quick-frame-ratios button{font-size:8px;height:56px}.quick-frame-ratios .frame-icon{transform:scale(.9)}#otherMaterials>.pain-cards>.pain-item{column-gap:7px}}
 @media(max-width:760px){.editor .quick-frame{grid-column:1/-1;width:100%;padding:17px 16px}.quick-frame-ratios{max-width:420px}.quick-frame-ratios button{height:59px;font-size:11px}.quick-frame-heading strong{font-size:12px}.quick-frame-heading span{font-size:10px}#otherMaterials>.pain-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.editor>section#otherMaterials{grid-column:1/-1}#otherMaterials .pain-item>input{font-size:12px}#otherMaterials .card-order button{font-size:10px}.other-controls .range-label{font-size:12px}}
 @media(max-width:430px){#otherMaterials>.pain-cards{display:flex}.quick-frame-ratios button{font-size:10px}#otherMaterials .pain-item>input{font-size:12px}}
+
+.quick-frame-extra{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:9px}
+.quick-frame-extra button{font-size:11px;padding:7px 8px;background:transparent;color:var(--muted);border-color:var(--line)}
+.quick-frame-extra button[aria-pressed=true]{color:var(--text);background:var(--panel-raised);border-color:var(--muted)}
+.quick-frame #customFrame{margin:12px 0 0;padding-top:2px;border-top:1px solid var(--line)}
+.quick-frame .frame-dimensions .field{margin-top:10px;font-size:11px;gap:6px}
+.quick-frame .frame-dimensions input{font-size:12px;border-color:var(--border)}
+.quick-frame #applyFrame{width:100%;margin-top:10px;font-size:12px}
+.quick-frame #frameHint{font-size:10px;margin-top:8px;line-height:1.7}

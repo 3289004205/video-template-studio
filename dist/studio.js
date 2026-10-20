@@ -86,6 +86,15 @@ function setupQuickFrame(){
  const list=[['1920,1080','16:9'],['1440,1080','4:3'],['1080,1080','1:1'],['1080,1350','4:5'],['1080,1440','3:4'],['1080,1920','9:16']];
  const root=$('quickFrameRatios');root.replaceChildren();
  for(const [size,label] of list){const b=document.createElement('button');b.type='button';b.dataset.size=size;b.setAttribute('aria-label','画面比例 '+label);const icon=document.createElement('span');icon.className='frame-icon';const [w,h]=size.split(',').map(Number);icon.style.width=(w>=h?22:22*w/h)+'px';icon.style.height=(h>=w?22:22*h/w)+'px';b.append(icon,document.createTextNode(label));b.onclick=()=>{if(exporting)return;settings.size=size;settings.customSize=false;syncSettings();invalidateVideo();};root.append(b);}
+ $('defaultFrame').onclick=()=>{if(exporting)return;settings.size=$('size').options[0].value;settings.customSize=false;syncSettings();};
+ $('customFrameChoice').onclick=()=>{if(exporting)return;$('size').value='custom';$('customFrame').hidden=false;syncQuickFrame();$('frameWidth').focus();};
  syncQuickFrame();
 }
-function syncQuickFrame(){if(!$('quickFrameDimensions'))return;$('quickFrameDimensions').textContent=settings.size.replace(',',' × ');document.querySelectorAll('#quickFrameRatios button').forEach(b=>{const selected=b.dataset.size===settings.size;b.classList.toggle('is-selected',selected);b.setAttribute('aria-pressed',String(selected));});}
+function syncQuickFrame(){
+ if(!$('quickFrameDimensions'))return;
+ $('quickFrameDimensions').textContent=settings.size.replace(',',' × ');
+ const custom=!$('customFrame').hidden,defaultSize=$('size').options[0]?.value;
+ document.querySelectorAll('#quickFrameRatios button').forEach(b=>{const selected=!custom&&b.dataset.size===settings.size&&settings.size!==defaultSize;b.classList.toggle('is-selected',selected);b.setAttribute('aria-pressed',String(selected));});
+ $('defaultFrame').setAttribute('aria-pressed',String(!custom&&settings.size===defaultSize));$('defaultFrame').title='模板默认 · '+(defaultSize||'').replace(',',' × ');
+ $('customFrameChoice').setAttribute('aria-pressed',String(custom));$('customFrameChoice').setAttribute('aria-expanded',String(custom));
+}
