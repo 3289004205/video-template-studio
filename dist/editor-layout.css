@@ -32,3 +32,9 @@ main#studioMain{display:grid;grid-template-columns:240px minmax(260px,1fr) 340px
 .quick-frame .frame-dimensions input{font-size:12px;border-color:var(--border)}
 .quick-frame #applyFrame{width:100%;margin-top:10px;font-size:12px}
 .quick-frame #frameHint{font-size:10px;margin-top:8px;line-height:1.7}
+
+.quick-content-scale{border-top:1px solid var(--line);margin-top:16px;padding-top:1px}
+.quick-content-scale .range-label{margin:12px 0 10px;font-size:11px}
+.quick-content-scale .range-label output{font-size:10px}
+.quick-content-scale #resetContentScale{display:block;margin:11px 0 0;font-size:11px}
+.quick-content-scale .footnote{font-size:10px;line-height:1.7;margin-top:7px}
