@@ -1,0 +1,15 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>Animation renderer verification</title><style>body{background:#15171d;color:#fff;font:12px sans-serif}#sheet{display:grid;grid-template-columns:repeat(9,140px);gap:8px}canvas{width:140px;height:140px}article{border:1px solid #45495a;padding:4px}p{margin:4px}</style><h1 id="result">Running renderer checks…</h1><div id="sheet"></div><script src="../dist/other-renderers.js"></script><script>
+const failures=[],hashes=new Map();let frames=0;const started=performance.now();
+for(const preset of OTHER_PRESETS){
+ const item=document.createElement('article'),c=document.createElement('canvas');c.width=c.height=160;const context=c.getContext('2d');let visible=false;const seen=new Set();
+ for(const ratio of [.07,.23,.51,.83]){
+  context.clearRect(0,0,160,160);
+  try{renderOtherFrame(preset.duration*ratio,{preset,options:preset.defaults,cards:[],duration:preset.duration,canvas:c,ctx:context});const pixels=context.getImageData(0,0,160,160).data;let count=0,hash=2166136261;for(let i=0;i<pixels.length;i+=4){if(pixels[i+3]>8)count++;hash=Math.imul(hash^pixels[i],16777619);hash=Math.imul(hash^pixels[i+1],16777619);hash=Math.imul(hash^pixels[i+3],16777619);}if(count>20)visible=true;seen.add(hash>>>0);frames++;}catch(e){failures.push(preset.id+': '+e.message);}
+ }
+ if(!visible)failures.push(preset.id+': all sampled frames are blank');
+ if(seen.size<2)failures.push(preset.id+': no animated change in sample frames');
+ drawOtherThumbnail(c,preset.id);const thumb=context.getImageData(0,0,160,160).data;let th=0;for(let i=0;i<thumb.length;i+=37)th=Math.imul(th^thumb[i],31);if(hashes.has(th))failures.push(preset.id+': duplicate thumbnail '+hashes.get(th));hashes.set(th,preset.id);
+ item.append(c);const p=document.createElement('p');p.textContent=preset.name;item.append(p);document.querySelector('#sheet').append(item);
+}
+document.querySelector('#result').textContent=JSON.stringify({templates:OTHER_PRESETS.length,frames,uniqueThumbnails:hashes.size,failures,elapsedMs:Math.round(performance.now()-started)});
+</script></html>
