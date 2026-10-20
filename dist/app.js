@@ -9,17 +9,31 @@ const supportedMime = typeof MediaRecorder === 'undefined' ? '' : ['video/mp4;co
 const extension = supportedMime.startsWith('video/mp4') ? 'mp4' : 'webm';
 let previewZoom = 'fit', previewFactor = 1;
 const zoomSteps = [10,25,50,75,100,150,200,300,400];
+let previewLayoutKey='',previewResizeFrame=0;
 function updatePreviewZoom(){
-  const viewport=$('previewViewport'),stage=$('previewStage');
-  if(!viewport.clientWidth||!viewport.clientHeight)return;
-  previewFactor=previewZoom==='fit'?Math.min((viewport.clientWidth-4)/canvas.width,(viewport.clientHeight-4)/canvas.height):Number(previewZoom)/100;
-  const width=Math.round(canvas.width*previewFactor),height=Math.round(canvas.height*previewFactor);
-  canvas.style.width=width+'px';canvas.style.height=height+'px';
-  stage.style.width=Math.max(width,viewport.clientWidth)+'px';stage.style.height=Math.max(height,viewport.clientHeight)+'px';
-  viewport.scrollLeft=(viewport.scrollWidth-viewport.clientWidth)/2;viewport.scrollTop=(viewport.scrollHeight-viewport.clientHeight)/2;
-  viewport.classList.toggle('pannable',width>viewport.clientWidth||height>viewport.clientHeight);
+  const viewport=$('previewViewport'),stage=$('previewStage'),fit=previewZoom==='fit';
+  viewport.classList.toggle('fit-preview',fit);
+  const availableWidth=viewport.clientWidth,availableHeight=viewport.clientHeight;
+  if(!availableWidth||!availableHeight||exporting)return;
+  const key=[previewZoom,availableWidth,availableHeight,canvas.width,canvas.height].join('|');
+  if(key===previewLayoutKey)return;
+  previewLayoutKey=key;
+  previewFactor=fit?Math.min(Math.max(1,availableWidth-4)/canvas.width,Math.max(1,availableHeight-4)/canvas.height):Number(previewZoom)/100;
+  const width=Math.max(1,Math.floor(canvas.width*previewFactor)),height=Math.max(1,Math.floor(canvas.height*previewFactor));
+  if(canvas.style.width!==width+'px')canvas.style.width=width+'px';
+  if(canvas.style.height!==height+'px')canvas.style.height=height+'px';
+  const stageWidth=fit?'100%':Math.max(width,availableWidth)+'px',stageHeight=fit?'100%':Math.max(height,availableHeight)+'px';
+  if(stage.style.width!==stageWidth)stage.style.width=stageWidth;
+  if(stage.style.height!==stageHeight)stage.style.height=stageHeight;
+  viewport.scrollLeft=fit?0:(viewport.scrollWidth-availableWidth)/2;viewport.scrollTop=fit?0:(viewport.scrollHeight-availableHeight)/2;
+  viewport.classList.toggle('pannable',!fit&&(width>availableWidth||height>availableHeight));
   $('previewZoom').value=previewZoom;$('zoomOut').disabled=previewFactor<=.1001;$('zoomIn').disabled=previewFactor>=3.999;
-  $('previewZoom').options[0].textContent=previewZoom==='fit'?`适合窗口 (${Math.round(previewFactor*100)}%)`:'适合窗口';
+  const label=fit?`适合窗口 (${Math.round(previewFactor*100)}%)`:'适合窗口';
+  if($('previewZoom').options[0].textContent!==label)$('previewZoom').options[0].textContent=label;
+}
+function schedulePreviewResize(){
+  if(previewResizeFrame)return;
+  previewResizeFrame=requestAnimationFrame(()=>{previewResizeFrame=0;updatePreviewZoom();});
 }
 function stepPreviewZoom(direction){
   const percent=previewFactor*100;
@@ -27,7 +41,7 @@ function stepPreviewZoom(direction){
 }
 $('previewZoom').onchange=e=>{previewZoom=e.target.value;updatePreviewZoom();};
 $('zoomOut').onclick=()=>stepPreviewZoom(-1);$('zoomIn').onclick=()=>stepPreviewZoom(1);
-new ResizeObserver(updatePreviewZoom).observe($('previewViewport'));
+new ResizeObserver(schedulePreviewResize).observe($('previewViewport'));
 let pan=null;
 $('previewViewport').addEventListener('pointerdown',e=>{
   const viewport=e.currentTarget;if(e.button!==0||e.pointerType==='touch'||!viewport.classList.contains('pannable'))return;
