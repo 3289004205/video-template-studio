@@ -27,7 +27,7 @@ function renderOtherFrame(t,state){
   const o=Object.assign({},preset.defaults,otherOptions||{}), TAU=Math.PI*2;
   const duration=Math.max(.1,Number(settings.duration)||preset.duration),p=((t/duration*(Number(o.speed)||1))%1+1)%1;
   const size=Math.max(80,Number(o.size)||320),gap=Number(o.gap)||0,rad=Math.max(0,Number(o.radius)||0),tilt=(Number(o.tilt)||0)*Math.PI/180,depth=Number(o.depth)||180;
-  const cards=otherCards||[],N=Math.max(1,cards.length||preset.slots),accent=o.color||'#6f7aff';
+  const cards=otherCards||[],N=Math.max(1,cards.length||preset.slots);
   const mod=(n,m)=>((n%m)+m)%m,clamp=n=>Math.max(0,Math.min(1,n)),ease=n=>{n=clamp(n);return n*n*(3-2*n);},lerp=(a,b,k)=>a+(b-a)*k;
   const pulse=(x,a=.12,b=.88)=>ease(x/a)*ease((1-x)/(1-b));
   const phase=p*N,index=Math.floor(phase),f=phase-index;
@@ -47,14 +47,14 @@ function renderOtherFrame(t,state){
   function card(i,x=0,y=0,w=size,h=size*.72,a=0,sx=1,sy=1,alpha=1,skew=0){
     if(alpha<.003||Math.abs(sx)<.003||Math.abs(sy)<.003)return;
     ctx.save();ctx.translate(x,y);ctx.rotate(a);ctx.transform(sx,0,skew,sy,0,0);ctx.globalAlpha*=clamp(alpha);
-    ctx.shadowColor='rgba(0,0,0,.2)';ctx.shadowBlur=24;ctx.shadowOffsetY=10;ctx.fillStyle=accent;path(-w/2,-h/2,w,h,rad);ctx.fill();ctx.shadowColor='transparent';ctx.clip();picture(i,w,h);
-    ctx.strokeStyle=accent;ctx.lineWidth=2.5;path(-w/2+1.5,-h/2+1.5,w-3,h-3,rad);ctx.stroke();ctx.restore();
+    ctx.shadowColor='rgba(0,0,0,.2)';ctx.shadowBlur=24;ctx.shadowOffsetY=10;ctx.fillStyle='rgba(0,0,0,.08)';path(-w/2,-h/2,w,h,rad);ctx.fill();ctx.shadowColor='transparent';ctx.clip();picture(i,w,h);
+    ctx.restore();
   }
   const textures=new Map();
   function texture(i,w,h){
     const key=[mod(i,N),Math.round(w),Math.round(h)].join('/');if(textures.has(key))return textures.get(key);
     const surface=typeof OffscreenCanvas!=='undefined'?new OffscreenCanvas(Math.ceil(w),Math.ceil(h)):document.createElement('canvas');surface.width=Math.ceil(w);surface.height=Math.ceil(h);const paint=surface.getContext('2d');
-    paint.save();paint.translate(w/2,h/2);paint.beginPath();paint.roundRect(-w/2,-h/2,w,h,Math.min(rad,w/2,h/2));paint.clip();picture(i,w,h,paint);paint.strokeStyle=accent;paint.lineWidth=3;paint.stroke();paint.restore();textures.set(key,surface);return surface;
+    paint.save();paint.translate(w/2,h/2);paint.beginPath();paint.roundRect(-w/2,-h/2,w,h,Math.min(rad,w/2,h/2));paint.clip();picture(i,w,h,paint);paint.restore();textures.set(key,surface);return surface;
   }
   function mesh(i,w,h,project,alpha=1){
     const image=texture(i,w,h),cols=state.thumbnail?2:5,rows=state.thumbnail?1:2;
