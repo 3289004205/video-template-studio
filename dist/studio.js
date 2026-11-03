@@ -1,5 +1,6 @@
 'use strict';
 const EXISTING_TEMPLATES=[
+ {id:'coach',name:'AI私教轮播',description:'私教方案 · 图片与文案联动',asset:'assets/coach-thumb.webp'},
  {id:'cards',name:'课程卡片轮播1',description:'课程卡片 · AE 原工程',asset:'assets/card-0.png'},
  {id:'plain',name:'长图横向滚动',description:'横向平移 · 长图展示',asset:'assets/plain-long.webp'},
  {id:'pain',name:'痛点轮播',description:'进度联动 · 毛玻璃 UI',asset:'assets/pain-0.webp'},
@@ -19,7 +20,7 @@ function syncSourcePicker(){
  optionMode.value=activeTemplate;
  const title=other?otherPresetInfo().name:EXISTING_TEMPLATES.find(t=>t.id===activeTemplate)?.name||'视频模板';
  $('activeTemplateName').textContent=title;$('projectTitle').textContent=title;
- $('sourceDescription').textContent=other?'参考 Animos · 9 组动效模板':'基于你的 AE 工程 · 7 个常用模板';
+ $('sourceDescription').textContent=other?'参考 Animos · 9 组动效模板':'基于你的 AE 工程 · 8 个常用模板';
  document.querySelectorAll('.template-tile').forEach(el=>{
   const selected=other?el.dataset.preset===otherPreset:el.dataset.mode===activeTemplate;
   el.classList.toggle('is-selected',selected);el.setAttribute('aria-pressed',String(selected));
